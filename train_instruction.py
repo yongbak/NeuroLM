@@ -332,10 +332,10 @@ def main(args):
     if args.wandb_log and master_process:
         import wandb
         os.environ["WANDB_API_KEY"] = args.wandb_api_key
-        wandb.init(project=args.wandb_project, name=args.wandb_run_name, dir=os.path.join(args.out_dir, 'wandb'), resume=True)
+        wandb.init(project=args.wandb_project, name=args.wandb_runname, dir=os.path.join(args.out_dir, 'wandb'), resume=True)
 
 
-    num_training_steps_per_epoch = sum([len(dataset['dataset_train']) for dataset in all_datasets]) // args.batch_size // ddp_world_size
+    num_training_steps_per_epoch = sum([len(dataset['dataset_train']) for dataset in all_datasets]) // args.eeg_batch_size // ddp_world_size
     lr_schedule_values = cosine_scheduler(
         args.learning_rate, args.min_lr, args.epochs, num_training_steps_per_epoch,
         warmup_epochs=args.warmup_epochs, warmup_steps=int(args.warmup_ratio * num_training_steps_per_epoch * args.epochs)
