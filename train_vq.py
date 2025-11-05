@@ -221,6 +221,9 @@ def main(args):
                 model.require_backward_grad_sync = (step + 1) % args.gradient_accumulation_steps == 0
             
             X, Y_freq, Y_raw, input_chans, input_time, input_mask = batch
+            print(f"🔍 [Training] Batch loaded - X: {X.shape}, Y_freq: {Y_freq.shape}, Y_raw: {Y_raw.shape}")
+            print(f"🔍 [Training] input_chans: {input_chans.shape}, input_time: {input_time.shape}, input_mask: {input_mask.shape}")
+            
             X = X.float().to(device, non_blocking=True)
             Y_freq = Y_freq.float().to(device, non_blocking=True)
             Y_raw = Y_raw.float().to(device, non_blocking=True)

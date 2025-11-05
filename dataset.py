@@ -55,15 +55,18 @@ class PickleLoader(Dataset):
         sample = pickle.load(open(self.files[index], "rb"))
         data = sample["X"]
         ch_names = sample["ch_names"]
+        print(f"🔍 [Dataset] Original data shape: {data.shape}, channels: {len(ch_names)}")
         data = torch.FloatTensor(data / 100)
 
         time = data.size(1) // 200
         input_time = [i  for i in range(time) for _ in range(data.size(0))]
 
         data = rearrange(data, 'N (A T) -> (A N) T', T=200)
+        print(f"🔍 [Dataset] After rearrange: {data.shape}, time segments: {time}")
         
         X = torch.zeros((self.block_size, 200))
         X[:data.size(0)] = data
+        print(f"🔍 [Dataset] Final X shape: {X.shape}, actual tokens: {data.size(0)}")
 
         if not self.GPT_training:
             Y_freq = torch.zeros((self.block_size, 100))

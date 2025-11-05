@@ -35,12 +35,25 @@ class TemporalConv(nn.Module):
 
     def forward(self, x, **kwargs):
         B, NA, T = x.shape
+        print(f"🔍 [TemporalConv] Input shape: batch={B}, tokens={NA}, time_samples={T}")
+        
         x = x.unsqueeze(1)
+        print(f"🔍 [TemporalConv] After unsqueeze: {x.shape}")
+        
         x = self.gelu1(self.norm1(self.conv1(x)))
+        print(f"🔍 [TemporalConv] After conv1: {x.shape}")
+        
         x = self.gelu2(self.norm2(self.conv2(x)))
+        print(f"🔍 [TemporalConv] After conv2: {x.shape}")
+        
         x = self.gelu3(self.norm3(self.conv3(x)))
+        print(f"🔍 [TemporalConv] After conv3: {x.shape}")
+        
         x = rearrange(x, 'B C NA T -> B NA (T C)')
+        print(f"🔍 [TemporalConv] After rearrange: {x.shape}")
+        
         x = self.l(x)
+        print(f"🔍 [TemporalConv] Final output: {x.shape}")
         return x
 
 
@@ -111,26 +124,42 @@ class NeuralTransformer(nn.Module):
 
     def forward_features(self, x, input_chans=None, input_times=None, mask=None, return_all_tokens=False, **kwargs):
         batch_size, n, t = x.shape
+        print(f"🔍 [NeuralTransformer] Input shape: batch={batch_size}, tokens={n}, features={t}")
+        
         x = self.patch_embed(x)
+        print(f"🔍 [NeuralTransformer] After patch_embed: {x.shape}")
 
         # add position and temporal embeddings
         pos_embed_used = self.pos_embed(input_chans)
+        print(f"🔍 [NeuralTransformer] pos_embed shape: {pos_embed_used.shape}")
         x = x + pos_embed_used
+        
         time_embed = self.time_embed(input_times)
+        print(f"🔍 [NeuralTransformer] time_embed shape: {time_embed.shape}")
         x = x + time_embed
+        print(f"🔍 [NeuralTransformer] After adding embeddings: {x.shape}")
 
         x = self.pos_drop(x)
         
-        for blk in self.blocks:
+        for i, blk in enumerate(self.blocks):
             x = blk(x, mask)
+            if i == 0:  # 첫 번째 블록 후에만 출력
+                print(f"🔍 [NeuralTransformer] After block {i}: {x.shape}")
         
+        print(f"🔍 [NeuralTransformer] After all blocks: {x.shape}")
         x = self.norm(x)
+        
         if self.fc_norm is not None:
             if return_all_tokens:
-                return self.fc_norm(x)
+                result = self.fc_norm(x)
+                print(f"🔍 [NeuralTransformer] Final output (all tokens): {result.shape}")
+                return result
             else:
-                return self.fc_norm(x.mean(1))
+                result = self.fc_norm(x.mean(1))
+                print(f"🔍 [NeuralTransformer] Final output (mean): {result.shape}")
+                return result
         else:
+            print(f"🔍 [NeuralTransformer] Final output (no fc_norm): {x.shape}")
             return x
 
     def forward(self, x, input_chans=None, input_times=None, mask=None, return_all_tokens=False, **kwargs):
