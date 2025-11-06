@@ -47,8 +47,18 @@ class PickleLoader(Dataset):
 
     def get_chans(self, ch_names):
             chans = []
+            # pad 인덱스를 기본값으로 사용
+            try:
+                pad_idx = standard_1020.index('pad')
+            except ValueError:
+                pad_idx = -1
             for ch_name in ch_names:
-                chans.append(standard_1020.index(ch_name))
+                try:
+                    chans.append(standard_1020.index(ch_name))
+                except ValueError:
+                    # 알 수 없는 채널명은 경고 후 pad 인덱스로 처리
+                    print(f"[!] get_chans: unknown channel '{ch_name}', using 'pad' index {pad_idx}")
+                    chans.append(pad_idx)
             return chans
 
     def __getitem__(self, index):
