@@ -26,7 +26,8 @@ def BuildEvents(signals, times):
         features[i, :] = signals[:, start:end]
     return features
 
-
+# https://mne.tools/stable/generated/mne.io.read_raw_edf.html#mne.io.read_raw_edf
+# https://mne.tools/stable/generated/mne.io.Raw.html#mne.io.Raw.get_data
 def readEDF(fileName):
     Rawdata = mne.io.read_raw_edf(fileName, preload=True)
 
@@ -36,6 +37,7 @@ def readEDF(fileName):
             if ch in Rawdata.ch_names:
                 useless_chs.append(ch)
         Rawdata.drop_channels(useless_chs)
+    # 모든 표준 채널명이 실제 채널 목록에 존재하는지 확인합니다.
     if chOrder_standard is not None and len(chOrder_standard) == len(Rawdata.ch_names):
         Rawdata.reorder_channels(chOrder_standard)
     if Rawdata.ch_names != chOrder_standard:
@@ -45,7 +47,17 @@ def readEDF(fileName):
     Rawdata.notch_filter(50.0)
     Rawdata.resample(200, n_jobs=5)
 
+    
+
+    # 실제 신호 수집하는 부분
+    # -60 (마지막 60초) * 200 (초당 샘플링 개수)
+    
+    # get_data returns:
+    # data: ndarray, shape (n_channels, n_times);   Copy of the data in the given range.
+    # times: ndarray, shape (n_times,);             Only returned if return_times=True, default is False. Times associated with the data samples. 
     _, times = Rawdata[:]
+
+    # signals는 channels x `# of samples` 형태의 ndarray
     signals = Rawdata.get_data(units='uV')[:, -60 * 200:]
 
     Rawdata.close()
@@ -60,6 +72,7 @@ def load_up_objects(fileList, Features, Labels, OutDir):
         elif fname[-5] == '2':
             label = 1
         try:
+            # readEDF은 (signals, times, RawData)를 반환합니다.
             [signals, times, Rawdata] = readEDF(fname)
         except (ValueError, KeyError):
             print("something funky happened in " + fname)
