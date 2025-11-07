@@ -94,24 +94,26 @@ def readTXT(filePath):
     # 명시적으로 모든 채널 인덱스를 지정합니다 (단일 채널도 포함).
     nchan = raw.info.get('nchan', raw.get_data().shape[0])
     picks = np.arange(nchan)
-    raw.filter(l_freq=0.1, h_freq=sr/2 - 1e-6, picks=picks)
+    
+    # 필터 매개변수를 조정하여 메모리 오버플로우 방지
+    # 더 높은 고역통과 주파수와 더 낮은 저역통과 주파수 사용
+    
+    raw.filter(l_freq=0.5, h_freq=None, picks=picks, 
+           filter_length='auto', l_trans_bandwidth='auto')
     raw.notch_filter(notch, picks=picks)
+
     raw.resample(sr, n_jobs=5)
 
     # times: ndarray, shape (n_times,);             Only returned if return_times=True, default is False. Times associated with the data samples. 
     _, times = raw[:]
-    
-    # 실제 신호 수집하는 부분
-    # -60 (마지막 60초) * 200 (초당 샘플링 개수)
-    
+        
     # signals는 channels x `# of samples` 형태의 ndarray
     # data: ndarray, shape (n_channels, n_times);   Copy of the data in the given range.
-    signals = raw.get_data(units='uV')
+    signals = raw.get_data()  # 단위 지정 제거
 
     return [signals, times, ch_names]
 
 def load_up_objects(fileList, Features, Labels, OutDir):
-    print("[*] fileList: " , fileList)
     for fname in fileList:
         print("[*] fname: ")
         print("\t%s" % fname)
@@ -142,6 +144,12 @@ def load_up_objects(fileList, Features, Labels, OutDir):
             }
             print(signal.shape)
 
+            print(
+                os.path.join(
+                    OutDir, fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
+                )
+            )
+
             save_pickle(
                 sample,
                 os.path.join(
@@ -157,8 +165,8 @@ def save_pickle(object, filename):
         pickle.dump(object, f)
 
 
-root = "../dummy_dataset/PMD_samples"
-out_dir = '../dummy_dataset/processed/pmd'
+root = "../datasets/PMD_samples"
+out_dir = '../datasets/processed/PMD_samples'
 
 train_out_dir = os.path.join(out_dir, "train")
 eval_out_dir = os.path.join(out_dir, "eval")
@@ -184,28 +192,28 @@ train_files = edf_files[:len(edf_files)//5*3]
 eval_files = edf_files[len(edf_files)//5*3:len(edf_files)//5*4]
 test_files = edf_files[len(edf_files)//5*4:]
 
-fs = 200
+fs = 2000  # Match the actual sampling rate used in readTXT and BuildEvents
 TrainFeatures = np.empty(
-    (0, 4, fs * 30)
-)  # 0 for lack of intialization, 22 for channels, fs for num of points
+    (0, 1, fs * 4)  # 1 channel (DEVICE), 4 seconds window
+)  # 0 for lack of intialization, 1 for channel, fs * 4 for 4-second window
 TrainLabels = np.empty([0, 1])
 load_up_objects(
     train_files, TrainFeatures, TrainLabels, train_out_dir
 )
 
-fs = 200
+fs = 2000  # Match the actual sampling rate used in readTXT and BuildEvents
 EvalFeatures = np.empty(
-    (0, 19, fs * 4)
-)  # 0 for lack of intialization, 22 for channels, fs for num of points
+    (0, 1, fs * 4)  # 1 channel (DEVICE), 4 seconds window
+)  # 0 for lack of intialization, 1 for channel, fs * 4 for 4-second window
 EvalLabels = np.empty([0, 1])
 load_up_objects(
     eval_files, EvalFeatures, EvalLabels, eval_out_dir
 )
 
-fs = 200
+fs = 2000  # Match the actual sampling rate used in readTXT and BuildEvents
 TestFeatures = np.empty(
-    (0, 19, fs * 4)
-)  # 0 for lack of intialization, 22 for channels, fs for num of points
+    (0, 1, fs * 4)  # 1 channel (DEVICE), 4 seconds window
+)  # 0 for lack of intialization, 1 for channel, fs * 4 for 4-second window
 TestLabels = np.empty([0, 1])
 load_up_objects(
     test_files, TestFeatures, TestLabels, test_out_dir
