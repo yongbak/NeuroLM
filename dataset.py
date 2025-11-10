@@ -24,17 +24,19 @@ standard_1020 = [
     'CCP1', 'CCP2', 'CCP3', 'CCP4', 'CCP5', 'CCP6', 'CCP7', 'CCP8', \
     'T1', 'T2', 'FTT9h', 'TTP7h', 'TPP9h', 'FTT10h', 'TPP8h', 'TPP10h', \
     "FP1-F7", "F7-T7", "T7-P7", "P7-O1", "FP2-F8", "F8-T8", "T8-P8", "P8-O2", "FP1-F3", "F3-C3", "C3-P3", "P3-O1", "FP2-F4", "F4-C4", "C4-P4", "P4-O2", \
-    'pad', 'I1', 'I2'
+    'pad', 'I1', 'I2', \
+    'DEVICE'
 ]
 
 
 class PickleLoader(Dataset):
-    def __init__(self, files, block_size=1024, sampling_rate=200, GPT_training=False):
+    def __init__(self, files, block_size=1024, sampling_rate=2000, sequence_unit=200, GPT_training=False):
         self.files = files
         self.default_rate = 200
         self.sampling_rate = sampling_rate
         self.block_size = block_size
         self.GPT_training = GPT_training
+        self.sequence_unit = sequence_unit
 
     def __len__(self):
         return len(self.files)
@@ -68,23 +70,23 @@ class PickleLoader(Dataset):
         print(f"🔍 [Dataset] Original data shape: {data.shape}, channels: {len(ch_names)}")
         data = torch.FloatTensor(data / 100)
 
-        time = data.size(1) // 200
+        time = data.size(1) // self.sequence_unit
         input_time = [i  for i in range(time) for _ in range(data.size(0))]
 
-        data = rearrange(data, 'N (A T) -> (A N) T', T=200)
+        data = rearrange(data, 'N (A T) -> (A N) T', T=self.sequence_unit)
         print(f"🔍 [Dataset] After rearrange: {data.shape}, time segments: {time}")
         
-        X = torch.zeros((self.block_size, 200))
+        X = torch.zeros((self.block_size, self.sequence_unit))
         X[:data.size(0)] = data
         print(f"🔍 [Dataset] Final X shape: {X.shape}, actual tokens: {data.size(0)}")
 
         if not self.GPT_training:
-            Y_freq = torch.zeros((self.block_size, 100))
-            Y_raw = torch.zeros((self.block_size, 200))
+            Y_freq = torch.zeros((self.block_size, self.sequence_unit//2))
+            Y_raw = torch.zeros((self.block_size, self.sequence_unit))
             x_fft = torch.fft.fft(data, dim=-1)
             amplitude = torch.abs(x_fft)
             amplitude = self.std_norm(amplitude)
-            Y_freq[:data.size(0)] = amplitude[:, :100]
+            Y_freq[:data.size(0)] = amplitude[:, :self.sequence_unit//2]
             Y_raw[:data.size(0)] = self.std_norm(data)
         
         # input_chans is the indices of the channels in the standard_1020 list

@@ -91,7 +91,7 @@ def main(args):
     print('prepare dataloader...')
     files = Path(args.dataset_dir, 'train').rglob('*.pkl')
     files = [file for file in files]
-    dataset_train = PickleLoader(files)
+    dataset_train = PickleLoader(files, sampling_rate=2000, sequence_unit=200)
     print('finished!')
 
     if ddp:
