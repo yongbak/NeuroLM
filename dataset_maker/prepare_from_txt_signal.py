@@ -178,19 +178,19 @@ if not os.path.exists(eval_out_dir):
 if not os.path.exists(test_out_dir):
     os.makedirs(test_out_dir)
 
-edf_files = []
+csv_files = []
 for dirName, subdirList, fileList in os.walk(root):
     for fname in fileList:
         # 대소문자 무관하게 .csv 확장자만 수집
         if fname.lower().endswith('.csv'):
-            edf_files.append(os.path.join(dirName, fname))
-edf_files.sort()
+            csv_files.append(os.path.join(dirName, fname))
+csv_files.sort()
 print("[*] csv_files: ")
-print(edf_files)
+print(csv_files)
 
-train_files = edf_files[:len(edf_files)//5*3]
-eval_files = edf_files[len(edf_files)//5*3:len(edf_files)//5*4]
-test_files = edf_files[len(edf_files)//5*4:]
+train_files = csv_files[:len(csv_files)//5*3]
+eval_files = csv_files[len(csv_files)//5*3:len(csv_files)//5*4]
+test_files = csv_files[len(csv_files)//5*4:]
 
 fs = 2000  # Match the actual sampling rate used in readTXT and BuildEvents
 TrainFeatures = np.empty(
