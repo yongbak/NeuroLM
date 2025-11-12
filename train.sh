@@ -1,1 +1,1 @@
-python train_vq.py --dataset_dir dummy_dataset --out_dir ./vq_output
+python train_vq.py --dataset_dir datasets/processed/PMD_samples --text_dataset_dir datasets/ --out_dir ./vq_output

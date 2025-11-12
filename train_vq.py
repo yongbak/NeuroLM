@@ -69,7 +69,7 @@ def main(args):
         os.makedirs(checkpoint_out_dir, exist_ok=True)
 
     # text data loader
-    data_dir = os.path.join(args.out_dir, 'text')
+    data_dir = os.path.join(args.text_dataset_dir, 'text')
     def get_batch(split):
         # We recreate np.memmap every batch to avoid a memory leak, as per
         # https://stackoverflow.com/questions/45132940/numpy-memmap-memory-usage-want-to-iterate-once/61472122#61472122
@@ -300,6 +300,7 @@ def get_args():
     parser = argparse.ArgumentParser('VQ training script', add_help=False)
     parser.add_argument('--out_dir', default='./', help='path where to save, empty for no saving')
     parser.add_argument('--dataset_dir', default='./', help='path where to save, empty for no saving')
+    parser.add_argument('--text_dataset_dir', default='./', help='path where to save, empty for no saving')
     parser.add_argument('--log_interval', default=10, type=int)
     parser.add_argument('--wandb_log', default=False, action='store_true')
     parser.add_argument('--wandb_project', default='NeuroLM')
