@@ -110,31 +110,31 @@ class VQ(nn.Module):
 
     def encode(self, x, input_chans=None, input_time=None, mask=None):
         batch_size, n, t = x.shape
-        print(f"🔍 [VQ Encode] Input shape: batch={batch_size}, tokens={n}, time={t}")
+        # print(f"🔍 [VQ Encode] Input shape: batch={batch_size}, tokens={n}, time={t}")
         
         encoder_features = self.encoder(x, input_chans, input_time, mask, return_all_tokens=True)
-        print(f"🔍 [VQ Encode] Encoder output shape: {encoder_features.shape}")
+        # print(f"🔍 [VQ Encode] Encoder output shape: {encoder_features.shape}")
 
         with torch.cuda.amp.autocast(enabled=False):
             to_quantizer_features = self.encode_task_layer(encoder_features.type_as(self.encode_task_layer[-1].weight))
-        print(f"🔍 [VQ Encode] To quantizer features shape: {to_quantizer_features.shape}")
+        # print(f"🔍 [VQ Encode] To quantizer features shape: {to_quantizer_features.shape}")
 
         quantize, loss, embed_ind = self.quantize(to_quantizer_features)
-        print(f"🔍 [VQ Encode] After quantization - quantize: {quantize.shape}, embed_ind: {embed_ind.shape}")
+        # print(f"🔍 [VQ Encode] After quantization - quantize: {quantize.shape}, embed_ind: {embed_ind.shape}")
 
         return quantize, embed_ind, loss, encoder_features
         
     def decode(self, quantize, input_chans=None, input_time=None, mask=None, **kwargs):
         # reshape tokens to feature maps for patch embed in decoder
-        print(f"🔍 [VQ Decode] Input quantized features shape: {quantize.shape}")
+        # print(f"🔍 [VQ Decode] Input quantized features shape: {quantize.shape}")
         
         decoder_features_freq = self.decoder_freq(quantize, input_chans, input_time, mask, return_all_tokens=True)
         decoder_features_raw = self.decoder_raw(quantize, input_chans, input_time, mask, return_all_tokens=True)
-        print(f"🔍 [VQ Decode] Decoder features - freq: {decoder_features_freq.shape}, raw: {decoder_features_raw.shape}")
+        # print(f"🔍 [VQ Decode] Decoder features - freq: {decoder_features_freq.shape}, raw: {decoder_features_raw.shape}")
         
         rec_freq = self.decode_task_layer_freq(decoder_features_freq)
         rec_raw = self.decode_task_layer_raw(decoder_features_raw)
-        print(f"🔍 [VQ Decode] Final reconstruction - freq: {rec_freq.shape}, raw: {rec_raw.shape}")
+        # print(f"🔍 [VQ Decode] Final reconstruction - freq: {rec_freq.shape}, raw: {rec_raw.shape}")
         
         return rec_freq, rec_raw
     
@@ -153,20 +153,20 @@ class VQ(nn.Module):
         """
         x: shape [B, N, T]
         """
-        print(f"🔍 [VQ Forward] Input x shape: {x.shape}")
-        print(f"🔍 [VQ Forward] Input y_freq shape: {y_freq.shape}, y_raw shape: {y_raw.shape}")
-        print(f"🔍 [VQ Forward] input_chans shape: {input_chans.shape}, input_time shape: {input_time.shape}")
-        print(f"🔍 [VQ Forward] input_mask shape: {input_mask.shape}")
+        # print(f"🔍 [VQ Forward] Input x shape: {x.shape}")
+        # print(f"🔍 [VQ Forward] Input y_freq shape: {y_freq.shape}, y_raw shape: {y_raw.shape}")
+        # print(f"🔍 [VQ Forward] input_chans shape: {input_chans.shape}, input_time shape: {input_time.shape}")
+        # print(f"🔍 [VQ Forward] input_mask shape: {input_mask.shape}")
         
         mask = input_mask.unsqueeze(1).repeat(1, x.size(1), 1).unsqueeze(1)
-        print(f"🔍 [VQ Forward] Processed mask shape: {mask.shape}")
+        # print(f"🔍 [VQ Forward] Processed mask shape: {mask.shape}")
         
         quantize, embed_ind, emb_loss, encoder_features = self.encode(x, input_chans, input_time, mask)
-        print(f"🔍 [VQ Forward] After encode - quantize: {quantize.shape}, embed_ind: {embed_ind.shape}")
-        print(f"🔍 [VQ Forward] encoder_features: {encoder_features.shape}, emb_loss: {emb_loss.item()}")
+        # print(f"🔍 [VQ Forward] After encode - quantize: {quantize.shape}, embed_ind: {embed_ind.shape}")
+        # print(f"🔍 [VQ Forward] encoder_features: {encoder_features.shape}, emb_loss: {emb_loss.item()}")
         
         xrec_freq, xrec_raw = self.decode(quantize, input_chans, input_time, mask)
-        print(f"🔍 [VQ Forward] After decode - xrec_freq: {xrec_freq.shape}, xrec_raw: {xrec_raw.shape}")
+        # print(f"🔍 [VQ Forward] After decode - xrec_freq: {xrec_freq.shape}, xrec_raw: {xrec_raw.shape}")
 
         loss_freq_mask = input_mask.unsqueeze(-1).repeat(1, 1, xrec_freq.size(-1))
         loss_raw_mask = input_mask.unsqueeze(-1).repeat(1, 1, xrec_raw.size(-1))

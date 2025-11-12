@@ -1,8 +1,15 @@
 """
-by Wei-Bang Jiang
+Tuning by Yonghyeon Park
 https://github.com/935963004/NeuroLM
 """
 
+# Adjust the hyperparameters as needed based on performance
+NUM_WORKERS = 2  # ~10
+DEFAULT_ACCUMULATION_STEPS = 8      # 1~
+DEFAULT_BATCH_SIZE = 1              # ~16
+DEFAULT_TEXT_BATCH_SIZE = 2         # ~64
+DEFAULT_DTYPE = 'float16'  #'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float16' # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
+    
 import os
 import time
 import argparse
@@ -31,8 +38,9 @@ def init(args):
     global ctx, master_process, ddp, ddp_world_size, ddp_rank, device, dtype, device_type, ddp_local_rank
     # various inits, derived attributes, I/O setup
     backend = 'nccl' # 'nccl', 'gloo', etc.
-    device = 'cuda' # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
-    dtype = 'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float16' # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
+    device = 'cuda' if torch.cuda.is_available() else 'cpu' # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
+
+    dtype = DEFAULT_DTYPE
     
     ddp = int(os.environ.get('RANK', -1)) != -1 # is this a ddp run?
     if ddp:
@@ -101,7 +109,7 @@ def main(args):
         data_loader_train = torch.utils.data.DataLoader(
             dataset_train, sampler=sampler_train,
             batch_size=args.batch_size,
-            num_workers=10,
+            num_workers=NUM_WORKERS,                  # Tuning hyperparameter
             pin_memory=True,
             drop_last=True,
         )
@@ -109,7 +117,7 @@ def main(args):
         data_loader_train = torch.utils.data.DataLoader(
             dataset_train,
             batch_size=args.batch_size,
-            num_workers=10,
+            num_workers=NUM_WORKERS,                  # Tuning hyperparameter
             pin_memory=True,
             drop_last=True,
             shuffle=True
@@ -193,6 +201,9 @@ def main(args):
         wandb.init(project=args.wandb_project, name=args.wandb_run_name, dir=os.path.join(args.out_dir, 'wandb'), resume=True)
 
     num_training_steps_per_epoch = len(dataset_train) // args.batch_size // ddp_world_size
+    if args.epochs <= args.warmup_epochs:
+        args.warmup_epochs = args.epochs
+        
     lr_schedule_values = cosine_scheduler(
         args.learning_rate, args.min_lr, args.epochs, num_training_steps_per_epoch,
         warmup_epochs=args.warmup_epochs
@@ -221,8 +232,8 @@ def main(args):
                 model.require_backward_grad_sync = (step + 1) % args.gradient_accumulation_steps == 0
             
             X, Y_freq, Y_raw, input_chans, input_time, input_mask = batch
-            print(f"🔍 [Training] Batch loaded - X: {X.shape}, Y_freq: {Y_freq.shape}, Y_raw: {Y_raw.shape}")
-            print(f"🔍 [Training] input_chans: {input_chans.shape}, input_time: {input_time.shape}, input_mask: {input_mask.shape}")
+            # print(f"🔍 [Training] Batch loaded - X: {X.shape}, Y_freq: {Y_freq.shape}, Y_raw: {Y_raw.shape}")
+            # print(f"🔍 [Training] input_chans: {input_chans.shape}, input_time: {input_time.shape}, input_mask: {input_mask.shape}")
             
             X = X.float().to(device, non_blocking=True)
             Y_freq = Y_freq.float().to(device, non_blocking=True)
@@ -252,8 +263,19 @@ def main(args):
 
             # evaluate the loss on train/val sets and write checkpoints
             if (iter_num + 1) % args.log_interval == 0 and master_process:
-                print(f"epoch {epoch} step [{step + 1}/{num_training_steps_per_epoch}]: train loss {log['train/total_loss']:.4f}, freq loss {log['train/rec_freq_loss']:.4f}, raw loss {log['train/rec_raw_loss']:.4f}, quant loss {log['train/quant_loss']:.4f} \
-                    domain loss {log['train/domain_loss'] + domain_loss2.item():.4f}")
+                # Calculate progress
+                total_batches = len(dataset_train) // args.batch_size
+                progress_pct = (step + 1) / num_training_steps_per_epoch * 100
+                
+                print(f"[Epoch {epoch + 1}/{args.epochs}] "
+                      f"[Batch {step + 1}/{num_training_steps_per_epoch} ({progress_pct:.1f}%)] "
+                      f"[Iter {iter_num + 1}] "
+                      f"Loss: {log['train/total_loss']:.4f} "
+                      f"(freq: {log['train/rec_freq_loss']:.4f}, "
+                      f"raw: {log['train/rec_raw_loss']:.4f}, "
+                      f"quant: {log['train/quant_loss']:.4f}, "
+                      f"domain: {log['train/domain_loss'] + domain_loss2.item():.4f}) "
+                      f"LR: {lr:.2e}")
 
                 if args.wandb_log:
                     wandb.log({
@@ -307,9 +329,10 @@ def get_args():
     parser.add_argument('--wandb_runname', default='VQ')
     parser.add_argument('--wandb_api_key', type=str)
     # training args
-    parser.add_argument('--gradient_accumulation_steps', default=1, type=int)
-    parser.add_argument('--batch_size', default=64, type=int)
-    parser.add_argument('--text_batch_size', default=16, type=int)
+
+    parser.add_argument('--gradient_accumulation_steps', default=DEFAULT_ACCUMULATION_STEPS, type=int)
+    parser.add_argument('--batch_size', default=DEFAULT_BATCH_SIZE, type=int)
+    parser.add_argument('--text_batch_size', default=DEFAULT_TEXT_BATCH_SIZE, type=int)
     parser.add_argument('--epochs', default=50, type=int)
     parser.add_argument('--warmup_epochs', default=5, type=int)
     parser.add_argument('--save_ckpt_freq', default=10, type=int)
