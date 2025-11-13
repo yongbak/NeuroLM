@@ -223,6 +223,8 @@ class VQ_Align(nn.Module):
                 nn.Linear(256, 2)
             )
 
+        # Load GPT2 from local path (offline mode)
+        # model_hf = GPT2LMHeadModel.from_pretrained('/path/to/your/gpt2/folder')
         model_hf = GPT2LMHeadModel.from_pretrained('gpt2')
         sd_hf = model_hf.state_dict()
         self.wte = nn.Embedding(50257, 768, _freeze=True)
