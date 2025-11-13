@@ -133,3 +133,66 @@ def get_metrics(output, target, metrics, is_binary):
             target, output, metrics=metrics
         )
     return results
+
+
+def txt_to_full_pickle(txt_file_path, output_pkl_path, sampling_rate=2000.0, notch=60.0):
+    """
+    Convert a single TXT/CSV file to one full pickle file (no windowing).
+    For inference: entire signal → single pkl file
+    
+    Args:
+        txt_file_path: path to input txt/csv file
+        output_pkl_path: path to output pickle file
+        sampling_rate: target sampling rate (default 2000 Hz)
+        notch: notch filter frequency (default 60 Hz)
+    """
+    import mne
+    import numpy as np
+    import pickle
+    
+    # Read signal
+    with open(txt_file_path, 'r', encoding='utf-8') as f:
+        signal = f.read().split("\n")[:-1]
+        signal = [float(s) for s in signal]
+    
+    signal = np.asarray(signal, dtype=np.float32)
+    
+    # Create MNE RawArray
+    ch_names = ['DEVICE']
+    ch_types = ['misc']
+    info = mne.create_info(ch_names=ch_names, sfreq=sampling_rate, ch_types=ch_types)
+    raw = mne.io.RawArray(signal[np.newaxis, :], info)
+    
+    # Preprocessing
+    nchan = raw.info.get('nchan', raw.get_data().shape[0])
+    picks = np.arange(nchan)
+    
+    raw.filter(l_freq=0.5, h_freq=None, picks=picks, 
+               filter_length='auto', l_trans_bandwidth='auto')
+    raw.notch_filter(notch, picks=picks)
+    raw.resample(sampling_rate, n_jobs=5)
+    
+    # Get data
+    signals = raw.get_data()  # shape: (1, n_samples)
+    
+    # Save as pickle - entire signal as one sample
+    sample = {
+        "X": signals,  # shape: (1, n_samples)
+        "ch_names": ['DEVICE'],
+        "y": 1,  # dummy label
+    }
+    
+    with open(output_pkl_path, 'wb') as f:
+        pickle.dump(sample, f)
+    
+    print(f"✅ Saved full signal pickle: {output_pkl_path}")
+    print(f"   Shape: {signals.shape}, Duration: {signals.shape[1]/sampling_rate:.2f}s")
+    
+    return signals.shape
+
+
+if __name__ == "__main__":
+    # Example usage
+    txt_file = "/home/yongbak/research/NeuroLM/datasets/PMD-Dataset/data/s0_b_2024_07.csv"
+    output_pkl = "/home/yongbak/research/NeuroLM/datasets/processed/tmp/s0_b_2024_07.pkl"
+    txt_to_full_pickle(txt_file, output_pkl)

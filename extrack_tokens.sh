@@ -1,0 +1,2 @@
+# input_file은 utils.py의 txt_to_full_pickle를 통해 변환한 PMD csv파일
+python extract_tokens.py   --input_file datasets/processed/tmp/s0_b_2024_07.pkl   --checkpoint_path vq_output/checkpoints/VQ/ckpt.pt   --chunk_size 64

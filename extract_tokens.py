@@ -17,7 +17,8 @@ def load_vq_model(checkpoint_path, device='cuda'):
     """Load trained VQ model from checkpoint"""
     print(f"Loading VQ model from {checkpoint_path}")
     
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    # weights_only=False to load full checkpoint, or True
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     
     # Get model configuration from checkpoint
     encoder_args = checkpoint['encoder_args']
@@ -50,8 +51,8 @@ def load_vq_model(checkpoint_path, device='cuda'):
     return model
 
 
-def extract_tokens_from_single_file(model, file_path, device='cuda', max_length=1024):
-    """Extract tokens from a single pickle file"""
+def extract_tokens_from_single_file(model, file_path, device='cuda', chunk_size=64):
+    """Extract tokens from a single pickle file by chunking into 64-token segments"""
     print(f"🔄 Processing: {file_path}")
     
     # Load data
@@ -73,14 +74,12 @@ def extract_tokens_from_single_file(model, file_path, device='cuda', max_length=
     data = rearrange(data, 'N (A T) -> (A N) T', T=200)
     print(f"📊 After rearrange: {data.shape}, time segments: {time_segments}")
     
-    # Truncate if too long
-    if data.size(0) > max_length:
-        data = data[:max_length]
-        # Also truncate channel list accordingly
-        n_channels = len(ch_names)
-        max_time_segments = max_length // n_channels
-        time_segments = min(time_segments, max_time_segments)
-        print(f"⚠️  Truncated to {max_length} tokens ({max_time_segments} time segments)")
+    n_channels = len(ch_names)
+    total_tokens = data.size(0)
+    
+    # Calculate number of chunks (64 tokens each)
+    num_chunks = (total_tokens + chunk_size - 1) // chunk_size
+    print(f"📦 Splitting into {num_chunks} chunks of {chunk_size} tokens each")
     
     # Create proper input_chans like in dataset.py
     from dataset import standard_1020
@@ -95,74 +94,99 @@ def extract_tokens_from_single_file(model, file_path, device='cuda', max_length=
                 chans.append(standard_1020.index('pad'))
         return chans
     
-    # Create input_chans: repeat channel names for each time segment
-    input_chans_list = list(ch_names) * time_segments
-    # Pad to max_length
-    if len(input_chans_list) < max_length:
-        input_chans_list.extend(['pad'] * (max_length - len(input_chans_list)))
-    else:
-        input_chans_list = input_chans_list[:max_length]
+    # Process each chunk
+    all_tokens = []
     
-    # Convert to indices
-    input_chans_indices = get_chans(input_chans_list)
+    for chunk_idx in range(num_chunks):
+        start_idx = chunk_idx * chunk_size
+        end_idx = min(start_idx + chunk_size, total_tokens)
+        chunk_data = data[start_idx:end_idx]
+        actual_chunk_size = chunk_data.size(0)
+        
+        print(f"\n📦 Chunk {chunk_idx + 1}/{num_chunks}: tokens [{start_idx}:{end_idx}] ({actual_chunk_size} tokens)")
+        
+        # Calculate time_segments for this chunk
+        chunk_time_segments = (actual_chunk_size + n_channels - 1) // n_channels
+        
+        # Create input_chans: repeat channel names for each time segment
+        input_chans_list = []
+        for t_idx in range(chunk_time_segments):
+            for ch_idx in range(n_channels):
+                token_idx = t_idx * n_channels + ch_idx
+                if token_idx < actual_chunk_size:
+                    input_chans_list.append(ch_names[ch_idx])
+        
+        # Pad to chunk_size
+        if len(input_chans_list) < chunk_size:
+            input_chans_list.extend(['pad'] * (chunk_size - len(input_chans_list)))
+        else:
+            input_chans_list = input_chans_list[:chunk_size]
+        
+        # Convert to indices
+        input_chans_indices = get_chans(input_chans_list)
+        
+        # Pad data to chunk_size
+        X = torch.zeros((chunk_size, 200))
+        X[:actual_chunk_size] = chunk_data
+        X = X.unsqueeze(0)  # Add batch dimension: (1, chunk_size, 200)
+        
+        input_chans = torch.IntTensor(input_chans_indices).unsqueeze(0)  # (1, chunk_size)
+        
+        # Create input_time (time segment indices within this chunk)
+        input_time_list = []
+        for t_idx in range(chunk_time_segments):
+            for ch_idx in range(n_channels):
+                token_idx = t_idx * n_channels + ch_idx
+                if token_idx < actual_chunk_size:
+                    input_time_list.append(t_idx)
+        
+        # Pad to chunk_size
+        if len(input_time_list) < chunk_size:
+            input_time_list.extend([0] * (chunk_size - len(input_time_list)))
+        else:
+            input_time_list = input_time_list[:chunk_size]
+        
+        input_time = torch.IntTensor(input_time_list).unsqueeze(0)  # (1, chunk_size)
+        
+        # Create mask (True for actual data, False for padding)
+        input_mask = torch.zeros(chunk_size).bool()
+        input_mask[:actual_chunk_size] = True
+        input_mask = input_mask.unsqueeze(0)  # (1, chunk_size)
+        
+        # Move to device
+        X = X.to(device)
+        input_chans = input_chans.to(device)
+        input_time = input_time.to(device)
+        input_mask = input_mask.to(device)
+        
+        print(f"  Input time range: {input_time[input_mask].min().item()}-{input_time[input_mask].max().item()}")
+        print(f"  Active tokens: {input_mask.sum().item()}")
+        
+        # Extract discrete tokens
+        with torch.no_grad():
+            discrete_tokens = model.VQ.get_codebook_indices(
+                X, input_chans, input_time, input_mask
+            )
+        
+        # Only keep the actual tokens (not padding)
+        chunk_tokens = discrete_tokens[0, :actual_chunk_size].cpu().numpy()
+        all_tokens.append(chunk_tokens)
+        
+        print(f"  ✅ Extracted {len(chunk_tokens)} tokens, range: {chunk_tokens.min()}-{chunk_tokens.max()}")
+        print(f"  Sample tokens: {chunk_tokens[:10]}")
     
-    # Create input tensors
-    batch_size = 1
-    n_tokens = data.size(0)
+    # Concatenate all chunks
+    all_tokens = np.concatenate(all_tokens, axis=0)
     
-    # Pad data to max_length
-    X = torch.zeros((max_length, 200))
-    X[:n_tokens] = data
-    X = X.unsqueeze(0)  # Add batch dimension: (1, max_length, 200)
+    print(f"\n🎯 Total tokens extracted: {len(all_tokens)}")
+    print(f"🎯 Token range: {all_tokens.min()} - {all_tokens.max()}")
+    print(f"🎯 First 20 tokens: {all_tokens[:20]}")
     
-    input_chans = torch.IntTensor(input_chans_indices).unsqueeze(0)  # (1, max_length)
-    
-    # Create input_time (time segment indices)
-    input_time_list = []
-    for i in range(time_segments):
-        input_time_list.extend([i] * len(ch_names))
-    # Pad to max_length
-    if len(input_time_list) < max_length:
-        input_time_list.extend([0] * (max_length - len(input_time_list)))
-    else:
-        input_time_list = input_time_list[:max_length]
-    
-    input_time = torch.IntTensor(input_time_list).unsqueeze(0)  # (1, max_length)
-    
-    # Create mask (True for actual data, False for padding)
-    input_mask = torch.zeros(max_length).bool()
-    input_mask[:n_tokens] = True
-    input_mask = input_mask.unsqueeze(0)  # (1, max_length)
-    
-    # Move to device
-    X = X.to(device)
-    input_chans = input_chans.to(device)
-    input_time = input_time.to(device)
-    input_mask = input_mask.to(device)
-    
-    print(f"📊 Input tensor shapes:")
-    print(f"  X: {X.shape}")
-    print(f"  input_chans: {input_chans.shape}, range: {input_chans.min().item()}-{input_chans.max().item()}")
-    print(f"  input_time: {input_time.shape}, range: {input_time.min().item()}-{input_time.max().item()}")
-    print(f"  input_mask: {input_mask.shape}, active tokens: {input_mask.sum().item()}")
-    
-    # Extract discrete tokens
-    with torch.no_grad():
-        discrete_tokens = model.VQ.get_codebook_indices(
-            X, input_chans, input_time, input_mask
-        )
-    
-    print(f"🎯 Output tokens shape: {discrete_tokens.shape}")
-    print(f"🎯 Token range: {discrete_tokens.min().item()} - {discrete_tokens.max().item()}")
-    print(f"🎯 Sample tokens: {discrete_tokens[0, :20].cpu().numpy()}")
-    
-    return discrete_tokens.cpu().numpy(), {
-        'input_chans': input_chans.cpu().numpy(),
-        'input_time': input_time.cpu().numpy(),
-        'input_mask': input_mask.cpu().numpy(),
-        'original_shape': data.shape,
+    return all_tokens, {
         'ch_names': ch_names,
-        'time_segments': time_segments,
+        'total_tokens': len(all_tokens),
+        'num_chunks': num_chunks,
+        'chunk_size': chunk_size,
         'file_path': file_path
     }
 
@@ -175,8 +199,8 @@ def main():
                         help='Path to input pickle file')
     parser.add_argument('--output_dir', default='./simple_tokens',
                         help='Output directory')
-    parser.add_argument('--max_length', type=int, default=1024,
-                        help='Maximum sequence length')
+    parser.add_argument('--chunk_size', type=int, default=64,
+                        help='Number of tokens per chunk (default: 64)')
     parser.add_argument('--device', default='cuda', choices=['cuda', 'cpu'],
                         help='Device to use')
     
@@ -188,13 +212,14 @@ def main():
         args.device = 'cpu'
     
     print(f"🔧 Using device: {args.device}")
+    print(f"📦 Chunk size: {args.chunk_size} tokens")
     
     # Load VQ model
     model = load_vq_model(args.checkpoint_path, args.device)
     
     # Extract tokens from single file
     tokens, metadata = extract_tokens_from_single_file(
-        model, args.input_file, args.device, args.max_length
+        model, args.input_file, args.device, args.chunk_size
     )
     
     # Save results
@@ -203,14 +228,19 @@ def main():
     # Save tokens
     output_file = os.path.join(args.output_dir, 'tokens.npy')
     np.save(output_file, tokens)
-    print(f"💾 Saved tokens to: {output_file}")
+    print(f"\n💾 Saved {len(tokens)} tokens to: {output_file}")
     
     # Save metadata
     metadata_file = os.path.join(args.output_dir, 'metadata.npz')
     np.savez(metadata_file, **metadata)
     print(f"💾 Saved metadata to: {metadata_file}")
     
-    print(f"✅ Token extraction completed!")
+    print(f"\n✅ Token extraction completed!")
+    print(f"📊 Summary:")
+    print(f"  - Total tokens: {len(tokens)}")
+    print(f"  - Number of chunks: {metadata['num_chunks']}")
+    print(f"  - Chunk size: {metadata['chunk_size']}")
+    print(f"  - Token range: {tokens.min()} - {tokens.max()}")
 
 
 if __name__ == '__main__':
