@@ -117,7 +117,8 @@ def load_vq_model(checkpoint_path, device='cuda'):
     
     return model
 
-def txt_to_full_pickle(txt_file_path, output_pkl_path, sampling_rate=2000.0, notch=60.0):
+# output_pkl_path 지정 시 저장, None인 경우 저장하지 않음
+def txt_to_full_pickle(txt_file_path, output_pkl_path=None, sampling_rate=2000.0, notch=60.0):
     """
     Convert a single TXT/CSV file to one full pickle file (no windowing).
     For inference: entire signal → single pkl file
@@ -164,21 +165,21 @@ def txt_to_full_pickle(txt_file_path, output_pkl_path, sampling_rate=2000.0, not
         "y": 1,  # dummy label
     }
     
-    with open(output_pkl_path, 'wb') as f:
-        pickle.dump(sample, f)
-    
-    print(f"✅ Saved full signal pickle: {output_pkl_path}")
-    print(f"   Shape: {signals.shape}, Duration: {signals.shape[1]/sampling_rate:.2f}s")
-    
-    return signals.shape
+    if output_pkl_path is not None:
+        with open(output_pkl_path, 'wb') as f:
+            pickle.dump(sample, f)
+        
+        print(f"✅ Saved full signal pickle: {output_pkl_path}")
+        print(f"   Shape: {signals.shape}, Duration: {signals.shape[1]/sampling_rate:.2f}s")
+        
+    return sample
 
 def extract_tokens_from_single_file(model, file_path, device='cuda' if torch.cuda.is_available() else 'cpu', chunk_size=64):
-    """Extract tokens from a single pickle file by chunking into 64-token segments"""
+    """Extract tokens from a txt signal file by chunking into 64-token segments"""
     print(f"🔄 Processing: {file_path}")
     
     # Load data
-    with open(file_path, 'rb') as f:
-        sample = pickle.load(f)
+    sample = txt_to_full_pickle(file_path, output_pkl_path=None)
     
     data = sample["X"]  # Shape: (channels, time_samples)
     ch_names = sample["ch_names"]
