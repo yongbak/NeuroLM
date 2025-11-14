@@ -113,6 +113,81 @@ def readTXT(filePath):
 
     return [signals, times, ch_names]
 
+def load_up_augmented_objects(fileList, Features, Labels, OutDir):
+    for fname in fileList:
+        
+        DUMMY_LABEL = 1
+        label = DUMMY_LABEL
+
+        try:
+            # readEDF은 (signals, times, ch_names)를 반환합니다.
+            [signals, times, ch_names] = readTXT(fname)
+        except Exception as e:
+            # NotImplementedError (non-EDF files) 등 모든 예외를 받아서 파일 이름과 함께 출력하고 건너뜁니다.
+            print("[*] Exception Happens while processing:", fname)
+            print("Exception type:", type(e).__name__)
+            print("Exception message:", e)
+            print("Stack trace:")
+            traceback.print_exc()
+            print("skipping this file and continuing...\n")
+            continue
+
+        from utils import TimeAugmentation as TA
+
+        # 구간별로 서로 다른 노이즈 추가, 매우 작은 노이즈
+        gaussian_noised_signals = TA.gaussian_noise(signals, 0, 0.02)
+        gaussian_noised_signals = BuildEvents(gaussian_noised_signals, times)
+
+        for idx, signal in enumerate(gaussian_noised_signals):
+            # 픽클에는 파일의 실제 채널명을 저장합니다(표준 목록 대신).
+            sample = {
+                "X": signal,
+                "ch_names": [name.upper().split(' ')[-1] for name in ch_names],
+                "y": label,
+            }
+            #print(signal.shape)
+
+            print(
+                os.path.join(
+                    OutDir, fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
+                )
+            )
+
+            save_pickle(
+                sample,
+                os.path.join(
+                    OutDir, "gaussian_noise_" + fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
+                ),
+            )
+
+        # 구간별로 서로 다른 진폭변조, 매우 작은 변조
+        amplitude_manipulated_signals = TA.amplitude_scaling(signals, 0.97, 1.03)
+        amplitude_manipulated_signals = BuildEvents(amplitude_manipulated_signals, times)
+
+        for idx, signal in enumerate(amplitude_manipulated_signals):
+            # 픽클에는 파일의 실제 채널명을 저장합니다(표준 목록 대신).
+            sample = {
+                "X": signal,
+                "ch_names": [name.upper().split(' ')[-1] for name in ch_names],
+                "y": label,
+            }
+            #print(signal.shape)
+
+            print(
+                os.path.join(
+                    OutDir, fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
+                )
+            )
+
+            save_pickle(
+                sample,
+                os.path.join(
+                    OutDir, "amplitude_manipulated_" +fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
+                ),
+            )
+
+    return Features, Labels
+
 def load_up_objects(fileList, Features, Labels, OutDir):
     for fname in fileList:
         print("[*] fname: ")
@@ -188,9 +263,9 @@ csv_files.sort()
 print("[*] csv_files: ")
 print(csv_files)
 
-train_files = csv_files[:len(csv_files)//5*3]
-eval_files = csv_files[len(csv_files)//5*3:len(csv_files)//5*4]
-test_files = csv_files[len(csv_files)//5*4:]
+train_files = csv_files[:len(csv_files)//9*6]
+eval_files = csv_files[len(csv_files)//9*6:len(csv_files)//9*8]
+test_files = csv_files[len(csv_files)//9*8:]
 
 fs = 2000  # Match the actual sampling rate used in readTXT and BuildEvents
 TrainFeatures = np.empty(
@@ -198,6 +273,9 @@ TrainFeatures = np.empty(
 )  # 0 for lack of intialization, 1 for channel, fs * 4 for 4-second window
 TrainLabels = np.empty([0, 1])
 load_up_objects(
+    train_files, TrainFeatures, TrainLabels, train_out_dir
+)
+load_up_augmented_objects(
     train_files, TrainFeatures, TrainLabels, train_out_dir
 )
 
@@ -209,6 +287,9 @@ EvalLabels = np.empty([0, 1])
 load_up_objects(
     eval_files, EvalFeatures, EvalLabels, eval_out_dir
 )
+load_up_augmented_objects(
+    eval_files, EvalFeatures, EvalLabels, eval_out_dir
+)
 
 fs = 2000  # Match the actual sampling rate used in readTXT and BuildEvents
 TestFeatures = np.empty(
@@ -216,5 +297,8 @@ TestFeatures = np.empty(
 )  # 0 for lack of intialization, 1 for channel, fs * 4 for 4-second window
 TestLabels = np.empty([0, 1])
 load_up_objects(
+    test_files, TestFeatures, TestLabels, test_out_dir
+)
+load_up_augmented_objects(
     test_files, TestFeatures, TestLabels, test_out_dir
 )
