@@ -352,12 +352,12 @@ def main():
 
 if __name__ == "__main__":
     # Example usage
-    txt_file = "/home/yongbak/research/NeuroLM/datasets/PMD-Dataset/data/s0_b_2024_07.csv"
+    txt_signal_file = "/home/yongbak/research/NeuroLM/datasets/PMD_samples/s0_b_2024_07.csv"
     output_pkl = "/home/yongbak/research/NeuroLM/datasets/processed/tmp/s0_b_2024_07.pkl"
     #txt_to_full_pickle(txt_file, output_pkl)
 
-    model = load_vq_model("./vq_output/checkpoints/VQ/ckpt.pt", device='cpu')
-    token_sequence, _ = extract_tokens_from_single_file(model, output_pkl, device='cpu')
+    model = load_vq_model("./vq_output/checkpoints/VQ/ckpt.pt", device='cuda' if torch.cuda.is_available() else 'cpu')
+    token_sequence, _ = extract_tokens_from_single_file(model, txt_signal_file, device='cuda' if torch.cuda.is_available() else 'cpu')
     print(type(token_sequence))
     print(len(token_sequence))
     print(token_sequence)
