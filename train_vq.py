@@ -99,7 +99,7 @@ def main(args):
     print('prepare dataloader...')
     files = Path(args.dataset_dir, 'train').rglob('*.pkl')
     files = [file for file in files]
-    dataset_train = PickleLoader(files, sampling_rate=2000, sequence_unit=200)
+    dataset_train = PickleLoader(files, block_size=400, sampling_rate=2000, sequence_unit=200)
     print('finished!')
 
     if ddp:
@@ -127,9 +127,9 @@ def main(args):
     iter_num = 0
 
     # model init
-    encoder_args = dict(n_layer=12, n_head=12, n_embd=768, block_size=1024,
+    encoder_args = dict(n_layer=12, n_head=12, n_embd=768, block_size=400,
                     bias=False, dropout=0., num_classes=0, in_chans=1, out_chans=16)
-    decoder_args = dict(n_layer=4, n_head=12, n_embd=768, block_size=1024,
+    decoder_args = dict(n_layer=4, n_head=12, n_embd=768, block_size=400,
                     bias=False, dropout=0., num_classes=0, in_chans=128)
 
     if os.path.exists(os.path.join(checkpoint_out_dir, 'ckpt.pt')):

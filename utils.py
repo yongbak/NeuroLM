@@ -154,8 +154,8 @@ def txt_to_full_pickle(txt_file_path, output_pkl_path=None, sampling_rate=2000.0
         
     return sample
 
-def extract_tokens_from_single_file(model, file_path, device='cuda' if torch.cuda.is_available() else 'cpu', chunk_size=64):
-    """Extract tokens from a txt signal file by chunking into 64-token segments"""
+def extract_tokens_from_single_file(model, file_path, chunk_size=400, sequence_unit=200, device='cuda' if torch.cuda.is_available() else 'cpu'):
+    """Extract tokens from a txt signal file by chunking into 400-token segments"""
     print(f"🔄 Processing: {file_path}")
     
     # Load data
@@ -169,11 +169,11 @@ def extract_tokens_from_single_file(model, file_path, device='cuda' if torch.cud
     
     # Preprocess like in dataset.py
     data = torch.FloatTensor(data / 100)
-    time_segments = data.size(1) // 200
+    time_segments = data.size(1) // sequence_unit
     
-    # Rearrange to (time_segments * channels, 200)
+    # Rearrange to (time_segments * channels, sequence_unit)
     from einops import rearrange
-    data = rearrange(data, 'N (A T) -> (A N) T', T=200)
+    data = rearrange(data, 'N (A T) -> (A N) T', T=sequence_unit)
     # print(f"📊 After rearrange: {data.shape}, time segments: {time_segments}")
     
     n_channels = len(ch_names)
@@ -200,6 +200,7 @@ def extract_tokens_from_single_file(model, file_path, device='cuda' if torch.cud
     all_tokens = []
     
     for chunk_idx in range(num_chunks):
+        print("[*] TRIAL %d" % chunk_idx)
         start_idx = chunk_idx * chunk_size
         end_idx = min(start_idx + chunk_size, total_tokens)
         chunk_data = data[start_idx:end_idx]
@@ -228,10 +229,10 @@ def extract_tokens_from_single_file(model, file_path, device='cuda' if torch.cud
         input_chans_indices = get_chans(input_chans_list)
         
         # Pad data to chunk_size
-        X = torch.zeros((chunk_size, 200))
+        X = torch.zeros((chunk_size, sequence_unit))
         X[:actual_chunk_size] = chunk_data
-        X = X.unsqueeze(0)  # Add batch dimension: (1, chunk_size, 200)
-        
+        X = X.unsqueeze(0)  # Add batch dimension: (1, chunk_size, sequence_unit)
+
         input_chans = torch.IntTensor(input_chans_indices).unsqueeze(0)  # (1, chunk_size)
         
         # Create input_time (time segment indices within this chunk)
@@ -357,7 +358,11 @@ if __name__ == "__main__":
     #txt_to_full_pickle(txt_file, output_pkl)
 
     model = load_vq_model("./vq_output/checkpoints/VQ/ckpt.pt", device='cuda' if torch.cuda.is_available() else 'cpu')
-    token_sequence, _ = extract_tokens_from_single_file(model, txt_signal_file, device='cuda' if torch.cuda.is_available() else 'cpu')
+    
+    #print(model.VQ.get_tokens(txt_signal_file))
+
+    # sequence_unit은 모델 아키텍처 설정값
+    token_sequence, _ = extract_tokens_from_single_file(model, txt_signal_file, sequence_unit=200, chunk_size=400, device='cuda' if torch.cuda.is_available() else 'cpu')
     print(type(token_sequence))
     print(len(token_sequence))
     print(token_sequence)

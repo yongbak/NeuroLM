@@ -85,7 +85,7 @@ class NeuralTransformer(nn.Module):
         self.patch_size = config.patch_size
 
         self.pos_embed = nn.Embedding(256, config.n_embd)
-        self.time_embed = nn.Embedding(64, config.n_embd)
+        self.time_embed = nn.Embedding(512, config.n_embd)
 
         self.rel_pos_bias = None
 

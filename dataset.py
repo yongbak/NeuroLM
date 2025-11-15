@@ -30,13 +30,14 @@ standard_1020 = [
 
 
 class PickleLoader(Dataset):
-    def __init__(self, files, block_size=1024, sampling_rate=2000, sequence_unit=200, GPT_training=False):
+    # batch * block_size * sequence_unit을 한꺼번에 VQ에 투입
+    def __init__(self, files, block_size=420, sampling_rate=2000, sequence_unit=200, GPT_training=False):
         self.files = files
         self.default_rate = 200
         self.sampling_rate = sampling_rate
-        self.block_size = block_size
+        self.block_size = block_size                # maximum number of tokens per a single signal file
         self.GPT_training = GPT_training
-        self.sequence_unit = sequence_unit
+        self.sequence_unit = sequence_unit          # number of time samples per token
 
     def __len__(self):
         return len(self.files)
