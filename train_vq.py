@@ -97,9 +97,10 @@ def main(args):
 
 
     print('prepare dataloader...')
-    files = Path(args.dataset_dir, 'train').rglob('*.pkl')
-    files = [file for file in files]
-    dataset_train = PickleLoader(files, block_size=400, sampling_rate=2000, sequence_unit=200)
+    train_files = list(Path(args.dataset_dir, 'train').rglob('*.pkl'))
+    val_files = list(Path(args.dataset_dir, 'val').rglob('*.pkl'))
+    dataset_train = PickleLoader(train_files, block_size=400, sampling_rate=2000, sequence_unit=200)
+    dataset_val = PickleLoader(val_files, block_size=400, sampling_rate=2000, sequence_unit=200)
     print('finished!')
 
     if ddp:
@@ -122,6 +123,15 @@ def main(args):
             drop_last=True,
             shuffle=True
         )
+    # validation 데이터로더
+    data_loader_val = torch.utils.data.DataLoader(
+        dataset_val,
+        batch_size=args.batch_size,
+        num_workers=NUM_WORKERS,
+        pin_memory=True,
+        drop_last=False,
+        shuffle=False
+    )
 
     # init these up here, can override if init_from='resume' (i.e. from a checkpoint)
     iter_num = 0
@@ -215,6 +225,11 @@ def main(args):
     t0 = time.time()
     local_iter_num = 0 # number of iterations in the lifetime of this process
     raw_model = model.module if ddp else model # unwrap DDP container if needed
+    # early stopping 관련 변수
+    patience = 10  # 개선 없을 때 몇 epoch 후 중단할지
+    best_val_loss = float('inf')
+    patience_counter = 0
+
     for epoch in range(start_epoch, args.epochs):
         for step, (batch) in enumerate(data_loader_train):
             # determine and set the learning rate for this iteration
@@ -298,7 +313,52 @@ def main(args):
             iter_num += 1
             local_iter_num += 1
         
+        # === validation loop ===
+        model.eval()
+        val_losses = []
+        with torch.no_grad():
+            for val_batch in data_loader_val:
+                X, Y_freq, Y_raw, input_chans, input_time, input_mask = val_batch
+                X = X.float().to(device, non_blocking=True)
+                Y_freq = Y_freq.float().to(device, non_blocking=True)
+                Y_raw = Y_raw.float().to(device, non_blocking=True)
+                input_chans = input_chans.to(device, non_blocking=True)
+                input_time = input_time.to(device, non_blocking=True)
+                input_mask = input_mask.to(device, non_blocking=True)
+                alpha = 0.0  # validation에서는 domain loss 영향 없음
+                loss, domain_loss, log = model(X, Y_freq, Y_raw, input_chans, input_time, input_mask, alpha)
+                val_losses.append(log['val/total_loss'])
+        val_total_loss = float(torch.tensor(val_losses).mean().item())
+        model.train()
+
         if master_process:
+            print(f"[Epoch {epoch + 1}] Validation total_loss: {val_total_loss:.4f}")
+            if args.wandb_log:
+                wandb.log({"epoch": epoch + 1, "val/total_loss": val_total_loss})
+
+            # early stopping 체크
+            if val_total_loss < best_val_loss:
+                best_val_loss = val_total_loss
+                patience_counter = 0
+                # 가장 좋은 모델 저장
+                checkpoint = {
+                    'model': raw_model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'encoder_args': encoder_args,
+                    'decoder_args': decoder_args,
+                    'iter_num': iter_num,
+                    'epoch': epoch
+                }
+                print(f"[EarlyStopping] Best model saved at epoch {epoch + 1}")
+                torch.save(checkpoint, os.path.join(checkpoint_out_dir, f'ckpt_best.pt'))
+            else:
+                patience_counter += 1
+                print(f"[EarlyStopping] Patience {patience_counter}/{patience}")
+                if patience_counter >= patience:
+                    print(f"[EarlyStopping] Stop training at epoch {epoch + 1}")
+                    break
+
+            # 기존 checkpoint 저장
             checkpoint = {
                 'model': raw_model.state_dict(),
                 'optimizer': optimizer.state_dict(),
@@ -309,7 +369,6 @@ def main(args):
             }
             print(f"saving checkpoint to {checkpoint_out_dir}")
             torch.save(checkpoint, os.path.join(checkpoint_out_dir, f'ckpt.pt'))
-        
             if (epoch + 1) % args.save_ckpt_freq == 0:
                 print(f"saving checkpoint {epoch} to {checkpoint_out_dir}")
                 torch.save(checkpoint, os.path.join(checkpoint_out_dir, f'ckpt-{epoch}.pt'))

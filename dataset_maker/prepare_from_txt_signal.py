@@ -244,7 +244,7 @@ root = "../datasets/PMD_samples"
 out_dir = '../datasets/processed/PMD_samples'
 
 train_out_dir = os.path.join(out_dir, "train")
-eval_out_dir = os.path.join(out_dir, "eval")
+eval_out_dir = os.path.join(out_dir, "val")
 test_out_dir = os.path.join(out_dir, "test")
 if not os.path.exists(train_out_dir):
     os.makedirs(train_out_dir)
