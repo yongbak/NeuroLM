@@ -9,7 +9,10 @@ DEFAULT_ACCUMULATION_STEPS = 8      # 1~
 DEFAULT_BATCH_SIZE = 1              # ~16
 DEFAULT_TEXT_BATCH_SIZE = 2         # ~64
 DEFAULT_DTYPE = 'float16'  #'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float16' # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
-    
+
+BLOCK_SIZE = 40             # 트랜스포머가 한 번에 입력받아 생산하는 토큰의 개수, time embedding과 관련이 있음
+SEQUENCE_LENGTH = 200       # 1개 토큰을 만들기 위해 사용하는 샘플의 개수
+
 import os
 import time
 import argparse
@@ -32,7 +35,6 @@ import math
 master_process = None; device = None; dtype = None
 ctx = None; ddp_rank = None; device_type = None
 ddp = None; ddp_world_size = None; ddp_local_rank = None
-
 
 def init(args):
     global ctx, master_process, ddp, ddp_world_size, ddp_rank, device, dtype, device_type, ddp_local_rank
@@ -99,8 +101,8 @@ def main(args):
     print('prepare dataloader...')
     train_files = list(Path(args.dataset_dir, 'train').rglob('*.pkl'))
     val_files = list(Path(args.dataset_dir, 'val').rglob('*.pkl'))
-    dataset_train = PickleLoader(train_files, block_size=400, sampling_rate=2000, sequence_unit=200)
-    dataset_val = PickleLoader(val_files, block_size=400, sampling_rate=2000, sequence_unit=200)
+    dataset_train = PickleLoader(train_files, block_size=BLOCK_SIZE, sampling_rate=2000, sequence_unit=SEQUENCE_LENGTH)
+    dataset_val = PickleLoader(val_files, block_size=BLOCK_SIZE, sampling_rate=2000, sequence_unit=SEQUENCE_LENGTH)
     print('finished!')
 
     if ddp:
@@ -137,9 +139,10 @@ def main(args):
     iter_num = 0
 
     # model init
-    encoder_args = dict(n_layer=12, n_head=12, n_embd=768, block_size=400,
+    # block_size는 prepare_from_txt_signal.py의 window_size // sequence_unit과 동일
+    encoder_args = dict(n_layer=12, n_head=12, n_embd=768, block_size=40,
                     bias=False, dropout=0., num_classes=0, in_chans=1, out_chans=16)
-    decoder_args = dict(n_layer=4, n_head=12, n_embd=768, block_size=400,
+    decoder_args = dict(n_layer=4, n_head=12, n_embd=768, block_size=40,
                     bias=False, dropout=0., num_classes=0, in_chans=128)
 
     if os.path.exists(os.path.join(checkpoint_out_dir, 'ckpt.pt')):
@@ -226,7 +229,7 @@ def main(args):
     local_iter_num = 0 # number of iterations in the lifetime of this process
     raw_model = model.module if ddp else model # unwrap DDP container if needed
     # early stopping 관련 변수
-    patience = 10  # 개선 없을 때 몇 epoch 후 중단할지
+    patience = 5  # 개선 없을 때 몇 epoch 후 중단할지
     best_val_loss = float('inf')
     patience_counter = 0
 

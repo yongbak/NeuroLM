@@ -84,8 +84,9 @@ class NeuralTransformer(nn.Module):
         self.patch_embed = TemporalConv(out_chans=config.out_chans) if config.in_chans == 1 else nn.Linear(config.in_chans, config.n_embd)
         self.patch_size = config.patch_size
 
+        # time_embedding은 window_size//sequence_unit = block_size과 동일하게 맞춤
         self.pos_embed = nn.Embedding(256, config.n_embd)
-        self.time_embed = nn.Embedding(512, config.n_embd)
+        self.time_embed = nn.Embedding(40, config.n_embd)
 
         self.rel_pos_bias = None
 

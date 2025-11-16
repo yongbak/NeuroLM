@@ -154,8 +154,8 @@ def txt_to_full_pickle(txt_file_path, output_pkl_path=None, sampling_rate=2000.0
         
     return sample
 
-def extract_tokens_from_single_file(model, file_path, chunk_size=400, sequence_unit=200, device='cuda' if torch.cuda.is_available() else 'cpu'):
-    """Extract tokens from a txt signal file by chunking into 400-token segments"""
+def extract_tokens_from_single_file(model, file_path, chunk_size=40, sequence_unit=200, device='cuda' if torch.cuda.is_available() else 'cpu'):
+    """Extract tokens from a txt signal file by chunking into 40-token segments"""
     print(f"🔄 Processing: {file_path}")
     
     # Load data
@@ -179,7 +179,7 @@ def extract_tokens_from_single_file(model, file_path, chunk_size=400, sequence_u
     n_channels = len(ch_names)
     total_tokens = data.size(0)
     
-    # Calculate number of chunks (64 tokens each)
+    # Calculate number of chunks (40 tokens each)
     num_chunks = (total_tokens + chunk_size - 1) // chunk_size
     # print(f"📦 Splitting into {num_chunks} chunks of {chunk_size} tokens each")
     
@@ -362,7 +362,7 @@ if __name__ == "__main__":
     #print(model.VQ.get_tokens(txt_signal_file))
 
     # sequence_unit은 모델 아키텍처 설정값
-    token_sequence, _ = extract_tokens_from_single_file(model, txt_signal_file, sequence_unit=200, chunk_size=400, device='cuda' if torch.cuda.is_available() else 'cpu')
+    token_sequence, _ = extract_tokens_from_single_file(model, txt_signal_file, sequence_unit=200, chunk_size=40, device='cuda' if torch.cuda.is_available() else 'cpu')
     print(type(token_sequence))
     print(len(token_sequence))
     print(token_sequence)
