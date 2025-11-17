@@ -13,6 +13,8 @@ DEFAULT_DTYPE = 'float16'  #'bfloat16' if torch.cuda.is_available() and torch.cu
 BLOCK_SIZE = 40             # 트랜스포머가 한 번에 입력받아 생산하는 토큰의 개수, time embedding과 관련이 있음
 SEQUENCE_LENGTH = 200       # 1개 토큰을 만들기 위해 사용하는 샘플의 개수
 
+OFFLINE = False
+
 import os
 import time
 import argparse
@@ -156,7 +158,7 @@ def main(args):
         # determine the vocab size we'll use for from-scratch training
         encoder_conf = NTConfig(**encoder_args)
         decoder_conf = NTConfig(**decoder_args)
-        model = VQ_Align(encoder_conf, decoder_conf)
+        model = VQ_Align(encoder_conf, decoder_conf, offline=OFFLINE)
         start_epoch = 0
     elif init_from == 'resume':
         print(f"Resuming training from {checkpoint_out_dir}")
@@ -174,7 +176,7 @@ def main(args):
         # create the model
         encoder_conf = NTConfig(**encoder_args)
         decoder_conf = NTConfig(**decoder_args)
-        model = VQ_Align(encoder_conf, decoder_conf)
+        model = VQ_Align(encoder_conf, decoder_conf, offline=OFFLINE)
         state_dict = checkpoint['model']
         # fix the keys of the state dictionary :(
         # honestly no idea how checkpoints sometimes get this prefix, have to debug more

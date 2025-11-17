@@ -214,6 +214,7 @@ class VQ_Align(nn.Module):
     def __init__(self, 
                  encoder_config,
                  decoder_config,
+                 offline=False
                  ):
         super(VQ_Align, self).__init__()
         self.VQ = VQ(encoder_config, decoder_config)
@@ -222,10 +223,14 @@ class VQ_Align(nn.Module):
                 nn.GELU(),
                 nn.Linear(256, 2)
             )
+        
+        self.offline = offline
 
         # Load GPT2 from local path (offline mode)
-        # model_hf = GPT2LMHeadModel.from_pretrained('/path/to/your/gpt2/folder')
-        model_hf = GPT2LMHeadModel.from_pretrained('gpt2')
+        if self.offline:
+            model_hf = GPT2LMHeadModel.from_pretrained('/data100/huggingface/models/openai-community_gpt2')
+        else:
+            model_hf = GPT2LMHeadModel.from_pretrained('gpt2')
         sd_hf = model_hf.state_dict()
         self.wte = nn.Embedding(50257, 768, _freeze=True)
         self.wte.weight.data = sd_hf['transformer.wte.weight']
