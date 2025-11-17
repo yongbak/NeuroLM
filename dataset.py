@@ -93,9 +93,8 @@ class PickleLoader(Dataset):
         
         # input_chans is the indices of the channels in the standard_1020 list
         # used for the spatial embedding
-        input_chans = list(ch_names) * time
-        input_chans.extend(['pad'] * (self.block_size - data.size(0)))
-        input_chans = torch.IntTensor(self.get_chans(input_chans))
+        # For single channel data, use all zeros (single positional embedding)
+        input_chans = torch.zeros(self.block_size, dtype=torch.long)
         # input_time is the mask for padding zeros
         # ensure that padding zeros are not used in the attention mechanism
         input_time.extend([0] * (self.block_size - data.size(0)))
