@@ -72,7 +72,28 @@ class NTConfig:
     dropout: float = 0.0
     bias: bool = False # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
 
+'''
+# 입력: 40개 구간, 각 200 샘플
+x = [
+    [200 샘플],  # 구간 0 (0-0.1초)
+    [200 샘플],  # 구간 1 (0.1-0.2초)
+    ...
+    [200 샘플],  # 구간 39 (3.9-4.0초)
+]  # [40, 200]
 
+# Step 1: CNN으로 각 구간 → 특징 변환
+features[0] = TemporalConv([200 샘플])  # [768]
+features[1] = TemporalConv([200 샘플])  # [768]
+...
+features[39] = TemporalConv([200 샘플]) # [768]
+# → [40, 768]
+
+# Step 2: Self-Attention은 40개 구간 사이에서!
+for i in range(40):
+    # 구간 i가 다른 39개 구간을 참고
+    refined[i] = Self-Attention(features[i], features[0:40])
+    # "구간 20은 구간 19, 21과 관계있네"
+'''
 class NeuralTransformer(nn.Module):
     def __init__(self, config, **kwargs):
         super().__init__()
