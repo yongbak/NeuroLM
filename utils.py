@@ -60,7 +60,6 @@ from pathlib import Path
 from model.model_vq import VQ_Align
 from model.model_neural_transformer import NTConfig
 
-def load_vq_model(checkpoint_path, device='cuda'):
     """Load trained VQ model from checkpoint"""
     print(f"Loading VQ model from {checkpoint_path}")
     
@@ -77,7 +76,6 @@ def load_vq_model(checkpoint_path, device='cuda'):
     # Create model
     encoder_conf = NTConfig(**encoder_args)
     decoder_conf = NTConfig(**decoder_args)
-    model = VQ_Align(encoder_conf, decoder_conf)
     
     # Load state dict
     state_dict = checkpoint['model']
