@@ -224,7 +224,8 @@ def extract_tokens_from_single_file(model, file_path, chunk_size=40, sequence_un
             input_chans_list = input_chans_list[:chunk_size]
         
         # Convert to indices
-        input_chans_indices = get_chans(input_chans_list)
+        # IMPORTANT: pos_embed has size 1, so all channel indices must be 0
+        input_chans_indices = [0] * len(input_chans_list)
         
         # Pad data to chunk_size
         X = torch.zeros((chunk_size, sequence_unit))
