@@ -142,9 +142,9 @@ def main(args):
 
     # model init
     # block_size는 prepare_from_txt_signal.py의 window_size // sequence_unit과 동일
-    encoder_args = dict(n_layer=12, n_head=12, n_embd=768, block_size=40,
+    encoder_args = dict(n_layer=12, n_head=12, n_embd=768, block_size=BLOCK_SIZE,
                     bias=False, dropout=0., num_classes=0, in_chans=1, out_chans=16)
-    decoder_args = dict(n_layer=4, n_head=12, n_embd=768, block_size=40,
+    decoder_args = dict(n_layer=4, n_head=12, n_embd=768, block_size=BLOCK_SIZE,
                     bias=False, dropout=0., num_classes=0, in_chans=128)
 
     if os.path.exists(os.path.join(checkpoint_out_dir, 'ckpt.pt')):
@@ -158,7 +158,12 @@ def main(args):
         # determine the vocab size we'll use for from-scratch training
         encoder_conf = NTConfig(**encoder_args)
         decoder_conf = NTConfig(**decoder_args)
-        model = VQ_Align(encoder_conf, decoder_conf, offline=OFFLINE)
+        model = VQ_Align(encoder_conf, decoder_conf,
+                         n_embed=2048,
+                         embed_dim=128,
+                         decay=0.95,
+                         decoder_out_dim=200,
+                         offline=OFFLINE)
         start_epoch = 0
     elif init_from == 'resume':
         print(f"Resuming training from {checkpoint_out_dir}")
@@ -176,7 +181,12 @@ def main(args):
         # create the model
         encoder_conf = NTConfig(**encoder_args)
         decoder_conf = NTConfig(**decoder_args)
-        model = VQ_Align(encoder_conf, decoder_conf, offline=OFFLINE)
+        model = VQ_Align(encoder_conf, decoder_conf,
+                         n_embed=2048,
+                         embed_dim=128,
+                         decay=0.95,
+                         decoder_out_dim=200,
+                         offline=OFFLINE)
         state_dict = checkpoint['model']
         # fix the keys of the state dictionary :(
         # honestly no idea how checkpoints sometimes get this prefix, have to debug more
@@ -231,7 +241,7 @@ def main(args):
     local_iter_num = 0 # number of iterations in the lifetime of this process
     raw_model = model.module if ddp else model # unwrap DDP container if needed
     # early stopping 관련 변수
-    patience = 5  # 개선 없을 때 몇 epoch 후 중단할지
+    patience = 10  # 개선 없을 때 몇 epoch 후 중단할지
     best_val_loss = float('inf')
     patience_counter = 0
 
@@ -398,9 +408,9 @@ def get_args():
     parser.add_argument('--batch_size', default=DEFAULT_BATCH_SIZE, type=int)
     parser.add_argument('--text_batch_size', default=DEFAULT_TEXT_BATCH_SIZE, type=int)
     parser.add_argument('--epochs', default=50, type=int)
-    parser.add_argument('--warmup_epochs', default=5, type=int)
+    parser.add_argument('--warmup_epochs', default=10, type=int)
     parser.add_argument('--save_ckpt_freq', default=10, type=int)
-    parser.add_argument('--block_size', default=1024, type=int)
+    parser.add_argument('--block_size', default=40, type=int)
 
     parser.add_argument('--learning_rate', type=float, default=5e-5, metavar='LR',
                         help='learning rate (default: 5e-5)')

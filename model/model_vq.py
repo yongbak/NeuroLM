@@ -209,15 +209,24 @@ class VQ(nn.Module):
 
         return optimizer
 
-
 class VQ_Align(nn.Module):
     def __init__(self, 
                  encoder_config,
                  decoder_config,
+                 n_embed=8192,
+                 embed_dim=128,
+                 decay=0.99,
+                 decoder_out_dim=200,
                  offline=False
                  ):
         super(VQ_Align, self).__init__()
-        self.VQ = VQ(encoder_config, decoder_config)
+        
+        self.VQ = VQ(encoder_config, decoder_config,
+                     n_embed=n_embed,
+                     embed_dim=embed_dim,
+                     decay=decay,
+                     decoder_out_dim=decoder_out_dim)
+        
         self.domain_classifier = nn.Sequential(
                 nn.Linear(decoder_config.n_embd, 256),
                 nn.GELU(),

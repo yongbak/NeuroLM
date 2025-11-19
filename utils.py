@@ -60,6 +60,7 @@ from pathlib import Path
 from model.model_vq import VQ_Align
 from model.model_neural_transformer import NTConfig
 
+def load_vq_model(checkpoint_path, device='cuda', offline=True):
     """Load trained VQ model from checkpoint"""
     print(f"Loading VQ model from {checkpoint_path}")
     
@@ -76,6 +77,7 @@ from model.model_neural_transformer import NTConfig
     # Create model
     encoder_conf = NTConfig(**encoder_args)
     decoder_conf = NTConfig(**decoder_args)
+    model = VQ_Align(encoder_conf, decoder_conf, offline=offline)
     
     # Load state dict
     state_dict = checkpoint['model']
@@ -356,7 +358,7 @@ if __name__ == "__main__":
     output_pkl = "/home/yongbak/research/NeuroLM/datasets/processed/tmp/s0_b_2024_07.pkl"
     #txt_to_full_pickle(txt_file, output_pkl)
 
-    model = load_vq_model("./vq_output/checkpoints/VQ/ckpt.pt", device='cuda' if torch.cuda.is_available() else 'cpu')
+    model = load_vq_model("./vq_output/checkpoints/VQ/ckpt_best.pt", device='cuda' if torch.cuda.is_available() else 'cpu')
     
     #print(model.VQ.get_tokens(txt_signal_file))
 
