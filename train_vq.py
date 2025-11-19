@@ -410,7 +410,7 @@ def get_args():
     parser.add_argument('--epochs', default=50, type=int)
     parser.add_argument('--warmup_epochs', default=10, type=int)
     parser.add_argument('--save_ckpt_freq', default=10, type=int)
-    parser.add_argument('--block_size', default=40, type=int)
+    parser.add_argument('--block_size', default=1024, type=int)
 
     parser.add_argument('--learning_rate', type=float, default=5e-5, metavar='LR',
                         help='learning rate (default: 5e-5)')
