@@ -263,9 +263,31 @@ csv_files.sort()
 print("[*] csv_files: ")
 print(csv_files)
 
-train_files = csv_files[:len(csv_files)//9*6]
-eval_files = csv_files[len(csv_files)//9*6:len(csv_files)//9*8]
-test_files = csv_files[len(csv_files)//9*8:]
+# 클래스별로 파일 분류 (b: 정상, cc/s/m: 비정상)
+class_files = {'b': [], 'cc': [], 's': [], 'm': []}
+for fpath in csv_files:
+    fname = os.path.basename(fpath)
+    class_label = fname.split('_')[1]
+    if class_label in class_files:
+        class_files[class_label].append(fpath)
+
+# 각 클래스에서 8:1:1 비율로 분할
+train_files = []
+eval_files = []
+test_files = []
+
+for class_label, files in class_files.items():
+    n = len(files)
+    train_end = (n * 8) // 10
+    eval_end = (n * 9) // 10
+    
+    train_files.extend(files[:train_end])
+    eval_files.extend(files[train_end:eval_end])
+    test_files.extend(files[eval_end:])
+    
+    print(f"[*] Class '{class_label}': {len(files)} files total -> train: {len(files[:train_end])}, eval: {len(files[train_end:eval_end])}, test: {len(files[eval_end:])}")
+
+print(f"[*] Total: train={len(train_files)}, eval={len(eval_files)}, test={len(test_files)}")
 
 fs = 2000  # Match the actual sampling rate used in readTXT and BuildEvents
 TrainFeatures = np.empty(
