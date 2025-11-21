@@ -13,7 +13,8 @@ from dataclasses import dataclass
 class TemporalConv(nn.Module):
     """ EEG to Patch Embedding
     """
-    def __init__(self, in_chans=1, out_chans=8):
+    # patch_size: sequence_unit, # of time samples per token
+    def __init__(self, in_chans=1, out_chans=8, patch_size=2000):
         '''
         in_chans: in_chans of nn.Conv2d()
         out_chans: out_chans of nn.Conv2d(), determing the output dimension
@@ -28,10 +29,22 @@ class TemporalConv(nn.Module):
         self.conv3 = nn.Conv2d(out_chans, out_chans, kernel_size=(1, 3), padding=(0, 1))
         self.norm3 = nn.GroupNorm(4, out_chans)
         self.gelu3 = nn.GELU()
+
+        # Calculate conv output size dynamically
+        conv_out_size = self._calculate_conv_output(patch_size)
+        final_size = conv_out_size * out_chans
+
         self.l = nn.Sequential(
-            nn.Linear(400, 768),
+            nn.Linear(final_size, 768),
             nn.GELU()
         )
+
+    def _calculate_conv_output(self, input_size):
+        """Calculate output size after conv layers"""
+        # Conv1: kernel=15, stride=8, padding=7
+        size = (input_size + 2*7 - 15) // 8 + 1
+        # Conv2, Conv3: kernel=3, padding=1 (size unchanged)
+        return size
 
     def forward(self, x, **kwargs):
         B, NA, T = x.shape
@@ -59,8 +72,10 @@ class TemporalConv(nn.Module):
 
 @dataclass
 class NTConfig:
-    block_size: int = 1024
-    patch_size: int = 200
+    # 1개 피클파일을 4만 샘플로 만듦. 1개 파일은 20개 토큰으로 나옴.
+    block_size: int = 20            # # of tokens that transformer handles
+    patch_size: int = 2000          # Sequence Unit
+    sample_size: int = 40000
     num_classes: int = 0
     in_chans: int = 1
     out_chans: int = 16
@@ -102,13 +117,16 @@ class NeuralTransformer(nn.Module):
         # To identify whether it is neural tokenizer or neural decoder. 
         # For the neural decoder, use linear projection (PatchEmbed) to project codebook dimension to hidden dimension.
         # Otherwise, use TemporalConv to extract temporal features from EEG signals.
-        self.patch_embed = TemporalConv(out_chans=config.out_chans) if config.in_chans == 1 else nn.Linear(config.in_chans, config.n_embd)
         self.patch_size = config.patch_size
+        self.patch_embed = TemporalConv(out_chans=config.out_chans, patch_size=self.patch_size) if config.in_chans == 1 else nn.Linear(config.in_chans, config.n_embd)
+        
+        import math
 
         # positional embedding은 channel embedding과 동일하게 맞춤
         # time_embedding은 window_size//sequence_unit = block_size과 동일하게 맞춤
+        # prepare_from_txt_signal에서 1개 pkl파일을 40000만 샘플로 만들고, 1개 토큰을 2000천 샘플로 만든다면, time_embedding은 20
         self.pos_embed = nn.Embedding(1, config.n_embd)
-        self.time_embed = nn.Embedding(40, config.n_embd)
+        self.time_embed = nn.Embedding(math.ceil(config.sample_size//config.patch_size), config.n_embd)
 
         self.rel_pos_bias = None
 

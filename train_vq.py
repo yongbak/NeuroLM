@@ -10,8 +10,9 @@ DEFAULT_BATCH_SIZE = 1              # ~16
 DEFAULT_TEXT_BATCH_SIZE = 2         # ~64
 DEFAULT_DTYPE = 'float16'  #'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float16' # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
 
-BLOCK_SIZE = 40             # 트랜스포머가 한 번에 입력받아 생산하는 토큰의 개수, time embedding과 관련이 있음
-SEQUENCE_LENGTH = 200       # 1개 토큰을 만들기 위해 사용하는 샘플의 개수
+NUM_OF_TOTAL_SAMPLES = 40000             # 1개 피클파일을 4만 샘플로 만듦
+NUM_OF_SAMPLES_PER_TOKEN = 2000          # 1개 토큰을 만들기 위해 사용하는 샘플의 개수
+NUM_OF_TOTAL_TOKENS = NUM_OF_TOTAL_SAMPLES / NUM_OF_SAMPLES_PER_TOKEN             # 트랜스포머가 한 번에 입력받아 생산하는 토큰의 개수, time embedding과 관련이 있음
 
 OFFLINE = False
 
@@ -103,8 +104,8 @@ def main(args):
     print('prepare dataloader...')
     train_files = list(Path(args.dataset_dir, 'train').rglob('*.pkl'))
     val_files = list(Path(args.dataset_dir, 'val').rglob('*.pkl'))
-    dataset_train = PickleLoader(train_files, block_size=BLOCK_SIZE, sampling_rate=2000, sequence_unit=SEQUENCE_LENGTH)
-    dataset_val = PickleLoader(val_files, block_size=BLOCK_SIZE, sampling_rate=2000, sequence_unit=SEQUENCE_LENGTH)
+    dataset_train = PickleLoader(train_files, block_size=NUM_OF_TOTAL_TOKENS, sampling_rate=2000, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN)
+    dataset_val = PickleLoader(val_files, block_size=NUM_OF_TOTAL_TOKENS, sampling_rate=2000, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN)
     print('finished!')
 
     if ddp:
@@ -142,9 +143,11 @@ def main(args):
 
     # model init
     # block_size는 prepare_from_txt_signal.py의 window_size // sequence_unit과 동일
-    encoder_args = dict(n_layer=12, n_head=12, n_embd=768, block_size=BLOCK_SIZE,
+    encoder_args = dict(n_layer=12, n_head=12, n_embd=768,
+                    block_size=NUM_OF_TOTAL_TOKENS, patch_size=NUM_OF_SAMPLES_PER_TOKEN, sample_size=NUM_OF_TOTAL_SAMPLES,
                     bias=False, dropout=0., num_classes=0, in_chans=1, out_chans=16)
-    decoder_args = dict(n_layer=4, n_head=12, n_embd=768, block_size=BLOCK_SIZE,
+    decoder_args = dict(n_layer=4, n_head=12, n_embd=768,
+                    block_size=NUM_OF_TOTAL_TOKENS, patch_size=NUM_OF_SAMPLES_PER_TOKEN, sample_size=NUM_OF_TOTAL_SAMPLES,
                     bias=False, dropout=0., num_classes=0, in_chans=128)
 
     if os.path.exists(os.path.join(checkpoint_out_dir, 'ckpt.pt')):
@@ -162,7 +165,7 @@ def main(args):
                          n_embed=2048,
                          embed_dim=128,
                          decay=0.95,
-                         decoder_out_dim=200,
+                         decoder_out_dim=NUM_OF_SAMPLES_PER_TOKEN,
                          offline=OFFLINE)
         start_epoch = 0
     elif init_from == 'resume':
@@ -185,7 +188,7 @@ def main(args):
                          n_embed=2048,
                          embed_dim=128,
                          decay=0.95,
-                         decoder_out_dim=200,
+                         decoder_out_dim=NUM_OF_SAMPLES_PER_TOKEN,
                          offline=OFFLINE)
         state_dict = checkpoint['model']
         # fix the keys of the state dictionary :(

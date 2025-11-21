@@ -47,9 +47,9 @@ def BuildEvents(signals, times, fs=2000.0):
 
     [numChan, numPoints] = signals.shape
 
-    # 기본 윈도우: 4초 길이, 2초 스텝 (겹침 50%) — 필요하면 인자화할 수 있습니다.
-    window_sec = 4.0
-    step_sec = 2.0
+    # 기본 윈도우: 20초 길이, 10초 스텝 (겹침 50%) — 필요하면 인자화할 수 있습니다.
+    window_sec = 20.0
+    step_sec = 10.0
     window_samples = int(round(window_sec * fs))
     step_samples = int(round(step_sec * fs))
 

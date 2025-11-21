@@ -32,9 +32,9 @@ standard_1020 = [
 class PickleLoader(Dataset):
     # batch * block_size * sequence_unit을 한꺼번에 VQ에 투입
     # prepare_from_txt_signal.py에서, window_size = block_size*sequence_unit = 8000
-    def __init__(self, files, block_size=40, sampling_rate=2000, sequence_unit=200, GPT_training=False):
+    def __init__(self, files, block_size=20, sampling_rate=2000, sequence_unit=2000, GPT_training=False):
         self.files = files
-        self.default_rate = 200
+        #self.default_rate = 200
         self.sampling_rate = sampling_rate
         self.block_size = block_size                # maximum number of tokens per a single signal file
         self.GPT_training = GPT_training

@@ -26,15 +26,31 @@ class ReverseLayerF(Function):
         return output, None
 
 
+'''
+class NTConfig:
+    block_size: int = 20            # # of tokens that transformer handles
+    patch_size: int = 2000          # Sequence Unit
+    num_classes: int = 0
+    in_chans: int = 1
+    out_chans: int = 16
+    use_mean_pooling: bool = True
+    init_scale: float = 0.001
+    n_layer: int = 12
+    n_head: int = 10
+    n_embd: int = 400
+    dropout: float = 0.0
+    bias: bool = False # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
+
+'''
+
 class VQ(nn.Module):
     def __init__(self,
                  encoder_config,
                  decoder_config,
-                 n_embed=8192, 
+                 n_embed=2048, 
                  embed_dim=128,
                  decay=0.99,
                  quantize_kmeans_init=True,
-                 decoder_out_dim=200,
                  smooth_l1_loss = False,
                  **kwargs
                  ):
@@ -56,7 +72,7 @@ class VQ(nn.Module):
             n_embed=n_embed, embedding_dim=embed_dim, beta=1.0, kmeans_init=quantize_kmeans_init, decay=decay,
         )
 
-        self.decoder_out_dim = decoder_out_dim
+        self.decoder_out_dim = encoder_config.patch_size
 
         # task layer
         self.encode_task_layer = nn.Sequential(
@@ -213,10 +229,9 @@ class VQ_Align(nn.Module):
     def __init__(self, 
                  encoder_config,
                  decoder_config,
-                 n_embed=8192,
+                 n_embed=2048,
                  embed_dim=128,
                  decay=0.99,
-                 decoder_out_dim=200,
                  offline=False
                  ):
         super(VQ_Align, self).__init__()
@@ -225,7 +240,7 @@ class VQ_Align(nn.Module):
                      n_embed=n_embed,
                      embed_dim=embed_dim,
                      decay=decay,
-                     decoder_out_dim=decoder_out_dim)
+                     decoder_out_dim=encoder_config.patch_size)
         
         self.domain_classifier = nn.Sequential(
                 nn.Linear(decoder_config.n_embd, 256),
