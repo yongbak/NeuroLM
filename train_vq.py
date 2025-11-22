@@ -1,6 +1,6 @@
 """
 Tuning by Yonghyeon Park
-https://github.com/935963004/NeuroLM
+https://github.com/yongbak/NeuroLM
 """
 
 # Adjust the hyperparameters as needed based on performance
@@ -12,7 +12,7 @@ DEFAULT_DTYPE = 'float16'  #'bfloat16' if torch.cuda.is_available() and torch.cu
 
 NUM_OF_TOTAL_SAMPLES = 40000             # 1개 피클파일을 4만 샘플로 만듦
 NUM_OF_SAMPLES_PER_TOKEN = 2000          # 1개 토큰을 만들기 위해 사용하는 샘플의 개수
-NUM_OF_TOTAL_TOKENS = NUM_OF_TOTAL_SAMPLES / NUM_OF_SAMPLES_PER_TOKEN             # 트랜스포머가 한 번에 입력받아 생산하는 토큰의 개수, time embedding과 관련이 있음
+NUM_OF_TOTAL_TOKENS = -(-NUM_OF_TOTAL_SAMPLES // NUM_OF_SAMPLES_PER_TOKEN)           # [정수 보장] 트랜스포머가 한 번에 입력받아 생산하는 토큰의 개수, time embedding과 관련이 있음. 
 
 OFFLINE = False
 
@@ -162,10 +162,10 @@ def main(args):
         encoder_conf = NTConfig(**encoder_args)
         decoder_conf = NTConfig(**decoder_args)
         model = VQ_Align(encoder_conf, decoder_conf,
+                         # Patch size, 1개 토큰이 커버하는 샘플 개수는 encoder_conf에 존재
                          n_embed=2048,
                          embed_dim=128,
                          decay=0.95,
-                         decoder_out_dim=NUM_OF_SAMPLES_PER_TOKEN,
                          offline=OFFLINE)
         start_epoch = 0
     elif init_from == 'resume':
