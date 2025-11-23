@@ -10,6 +10,8 @@ import pickle
 import traceback
 import torch
 
+from augmentor import TimeSeriesAugmentor as TA
+
 
 drop_channels = None
 chOrder_standard = ['DEVICE']
@@ -131,8 +133,6 @@ def load_up_augmented_objects(fileList, Features, Labels, OutDir):
             traceback.print_exc()
             print("skipping this file and continuing...\n")
             continue
-
-        from utils import TimeSeriesAugmentor as TA
 
         # 구간별로 서로 다른 노이즈 추가, 매우 작은 노이즈
         gaussian_noised_signals = TA.gaussian_noise(signals, 0, 0.02)
