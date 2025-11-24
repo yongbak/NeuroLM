@@ -187,7 +187,6 @@ def main(args):
                          n_embed=2048,
                          embed_dim=128,
                          decay=0.95,
-                         decoder_out_dim=NUM_OF_SAMPLES_PER_TOKEN,
                          offline=OFFLINE)
         state_dict = checkpoint['model']
         # fix the keys of the state dictionary :(
