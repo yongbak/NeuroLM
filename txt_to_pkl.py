@@ -12,12 +12,14 @@ import torch
 
 from augmentor import TimeSeriesAugmentor as TA
 from constants import (
-    NUM_OF_SAMPLES_PER_TOKEN,
+    NUM_OF_TOTAL_SAMPLES,
     GAUSSIAN_NOISE_MEAN,
     GAUSSIAN_NOISE_STD,
     AMPLITUDE_SCALING_MIN,
     AMPLITUDE_SCALING_MAX
 )
+
+AUGMENT_FACTOR = 5      # > 0
 
 drop_channels = None
 chOrder_standard = ['DEVICE']
@@ -56,7 +58,7 @@ def BuildEvents(signals, times, fs=2000.0):
     [numChan, numPoints] = signals.shape
 
     # 기본 윈도우: 20초 길이, 10초 스텝 (겹침 50%) — 필요하면 인자화할 수 있습니다.
-    window_sec = NUM_OF_SAMPLES_PER_TOKEN / fs
+    window_sec = NUM_OF_TOTAL_SAMPLES / fs
     step_sec = window_sec * 0.5
     window_samples = int(round(window_sec * fs))
     step_samples = int(round(step_sec * fs))
@@ -141,10 +143,11 @@ def load_up_augmented_objects(fileList, Features, Labels, OutDir, augment_factor
             continue
 
         # 구간별로 서로 다른 노이즈 추가, 매우 작은 노이즈
-        gaussian_noised_signals = TA.gaussian_noise(signals, GAUSSIAN_NOISE_MEAN, GAUSSIAN_NOISE_STD)
-        gaussian_noised_signals = BuildEvents(gaussian_noised_signals, times)
-
         for f in range(augment_factor):
+            # 매번 새로운 노이즈 생성
+            gaussian_noised_signals = TA.gaussian_noise(signals, GAUSSIAN_NOISE_MEAN, GAUSSIAN_NOISE_STD)
+            gaussian_noised_signals = BuildEvents(gaussian_noised_signals, times)
+            
             for idx, signal in enumerate(gaussian_noised_signals):
                 # 픽클에는 파일의 실제 채널명을 저장합니다(표준 목록 대신).
                 sample = {
@@ -163,15 +166,16 @@ def load_up_augmented_objects(fileList, Features, Labels, OutDir, augment_factor
                 save_pickle(
                     sample,
                     os.path.join(
-                        OutDir, "gaussian_noise_{f}_" + fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
+                        OutDir, f"gaussian_noise_{f}_" + fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
                     ),
                 )
 
         # 구간별로 서로 다른 진폭변조, 매우 작은 변조
-        amplitude_manipulated_signals = TA.amplitude_scaling(signals, AMPLITUDE_SCALING_MIN, AMPLITUDE_SCALING_MAX)
-        amplitude_manipulated_signals = BuildEvents(amplitude_manipulated_signals, times)
-
         for f in range(augment_factor):
+            # 매번 새로운 진폭변조 생성
+            amplitude_manipulated_signals = TA.amplitude_scaling(signals, AMPLITUDE_SCALING_MIN, AMPLITUDE_SCALING_MAX)
+            amplitude_manipulated_signals = BuildEvents(amplitude_manipulated_signals, times)
+            
             for idx, signal in enumerate(amplitude_manipulated_signals):
                 # 픽클에는 파일의 실제 채널명을 저장합니다(표준 목록 대신).
                 sample = {
@@ -190,7 +194,7 @@ def load_up_augmented_objects(fileList, Features, Labels, OutDir, augment_factor
                 save_pickle(
                     sample,
                     os.path.join(
-                        OutDir, "amplitude_manipulated_{f}_" +fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
+                        OutDir, f"amplitude_manipulated_{f}_" +fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
                     ),
                 )
 
@@ -248,8 +252,8 @@ def save_pickle(object, filename):
         pickle.dump(object, f)
 
 
-root = "../datasets/PMD_samples"
-out_dir = '../datasets/processed/PMD_samples'
+root = "./datasets/PMD_samples"
+out_dir = './datasets/processed/PMD_samples'
 
 train_out_dir = os.path.join(out_dir, "train")
 eval_out_dir = os.path.join(out_dir, "val")
@@ -306,7 +310,7 @@ load_up_objects(
     train_files, TrainFeatures, TrainLabels, train_out_dir
 )
 load_up_augmented_objects(
-    train_files, TrainFeatures, TrainLabels, train_out_dir
+    train_files, TrainFeatures, TrainLabels, train_out_dir, augment_factor=AUGMENT_FACTOR
 )
 
 fs = 2000  # Match the actual sampling rate used in readTXT and BuildEvents
@@ -318,7 +322,7 @@ load_up_objects(
     eval_files, EvalFeatures, EvalLabels, eval_out_dir
 )
 load_up_augmented_objects(
-    eval_files, EvalFeatures, EvalLabels, eval_out_dir
+    eval_files, EvalFeatures, EvalLabels, eval_out_dir, augment_factor=AUGMENT_FACTOR
 )
 
 fs = 2000  # Match the actual sampling rate used in readTXT and BuildEvents
@@ -330,5 +334,5 @@ load_up_objects(
     test_files, TestFeatures, TestLabels, test_out_dir
 )
 load_up_augmented_objects(
-    test_files, TestFeatures, TestLabels, test_out_dir
+    test_files, TestFeatures, TestLabels, test_out_dir, augment_factor=AUGMENT_FACTOR
 )
