@@ -115,7 +115,7 @@ def readTXT(filePath):
 
     return [signals, times, ch_names]
 
-def load_up_augmented_objects(fileList, Features, Labels, OutDir):
+def load_up_augmented_objects(fileList, Features, Labels, OutDir, augment_factor=1):
     for fname in fileList:
         
         DUMMY_LABEL = 1
@@ -135,56 +135,58 @@ def load_up_augmented_objects(fileList, Features, Labels, OutDir):
             continue
 
         # 구간별로 서로 다른 노이즈 추가, 매우 작은 노이즈
-        gaussian_noised_signals = TA.gaussian_noise(signals, 0, 0.02)
+        gaussian_noised_signals = TA.gaussian_noise(signals, 0, 0.05)
         gaussian_noised_signals = BuildEvents(gaussian_noised_signals, times)
 
-        for idx, signal in enumerate(gaussian_noised_signals):
-            # 픽클에는 파일의 실제 채널명을 저장합니다(표준 목록 대신).
-            sample = {
-                "X": signal,
-                "ch_names": [name.upper().split(' ')[-1] for name in ch_names],
-                "y": label,
-            }
-            #print(signal.shape)
+        for f in range(augment_factor):
+            for idx, signal in enumerate(gaussian_noised_signals):
+                # 픽클에는 파일의 실제 채널명을 저장합니다(표준 목록 대신).
+                sample = {
+                    "X": signal,
+                    "ch_names": [name.upper().split(' ')[-1] for name in ch_names],
+                    "y": label,
+                }
+                #print(signal.shape)
 
-            print(
-                os.path.join(
-                    OutDir, fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
+                print(
+                    os.path.join(
+                        OutDir, fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
+                    )
                 )
-            )
 
-            save_pickle(
-                sample,
-                os.path.join(
-                    OutDir, "gaussian_noise_" + fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
-                ),
-            )
+                save_pickle(
+                    sample,
+                    os.path.join(
+                        OutDir, "gaussian_noise_{f}_" + fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
+                    ),
+                )
 
         # 구간별로 서로 다른 진폭변조, 매우 작은 변조
-        amplitude_manipulated_signals = TA.amplitude_scaling(signals, 0.97, 1.03)
+        amplitude_manipulated_signals = TA.amplitude_scaling(signals, 0.95, 1.05)
         amplitude_manipulated_signals = BuildEvents(amplitude_manipulated_signals, times)
 
-        for idx, signal in enumerate(amplitude_manipulated_signals):
-            # 픽클에는 파일의 실제 채널명을 저장합니다(표준 목록 대신).
-            sample = {
-                "X": signal,
-                "ch_names": [name.upper().split(' ')[-1] for name in ch_names],
-                "y": label,
-            }
-            #print(signal.shape)
+        for f in range(augment_factor):
+            for idx, signal in enumerate(amplitude_manipulated_signals):
+                # 픽클에는 파일의 실제 채널명을 저장합니다(표준 목록 대신).
+                sample = {
+                    "X": signal,
+                    "ch_names": [name.upper().split(' ')[-1] for name in ch_names],
+                    "y": label,
+                }
+                #print(signal.shape)
 
-            print(
-                os.path.join(
-                    OutDir, fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
+                print(
+                    os.path.join(
+                        OutDir, fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
+                    )
                 )
-            )
 
-            save_pickle(
-                sample,
-                os.path.join(
-                    OutDir, "amplitude_manipulated_" +fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
-                ),
-            )
+                save_pickle(
+                    sample,
+                    os.path.join(
+                        OutDir, "amplitude_manipulated_{f}_" +fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
+                    ),
+                )
 
     return Features, Labels
 
