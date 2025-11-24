@@ -118,27 +118,50 @@ class VAEAugmentor:
         return recon_loss + beta * kld, recon_loss, kld
     
     def train(self,
-             dataloader,
+             train_dataloader,
+             val_dataloader=None,
              epochs=100,
              lr=1e-3,
-             beta=0.001):
-        """Train VAE on signal data from dataloader"""
+             beta=0.001,
+             early_stopping_patience=5,
+             min_delta=1e-4):
+        """
+        Train VAE on signal data from dataloader
+        
+        Args:
+            train_dataloader: DataLoader for training data
+            val_dataloader: DataLoader for validation data (optional, for early stopping)
+            epochs: Maximum number of epochs
+            lr: Learning rate
+            beta: KL divergence weight
+            early_stopping_patience: Number of epochs to wait before stopping if no improvement
+            min_delta: Minimum change in validation loss to qualify as improvement
+        """
         
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        
+        # Early stopping variables
+        best_val_recon_loss = float('inf')
+        patience_counter = 0
+        best_model_state = None
         
         self.model.train()
         print(f"\n{'='*60}")
         print(f"Starting VAE Training")
-        print(f"Total epochs: {epochs}, Batches per epoch: {len(dataloader)}")
+        print(f"Total epochs: {epochs}, Batches per epoch: {len(train_dataloader)}")
         print(f"Learning rate: {lr}, Beta (KL weight): {beta}")
+        if val_dataloader:
+            print(f"Early stopping: patience={early_stopping_patience}, min_delta={min_delta}")
         print(f"{'='*60}\n")
         
         for epoch in range(epochs):
+            # Training phase
+            self.model.train()
             total_loss = 0
             total_recon = 0
             total_kld = 0
             
-            for batch_idx, batch in enumerate(dataloader):
+            for batch_idx, batch in enumerate(train_dataloader):
                 # batch[0] = list of X  (배치 내 모든 X값들)
                 # batch[0].shape: (batch_size, block_size, sequence_unit)
                 X = batch[0]
@@ -159,17 +182,73 @@ class VAEAugmentor:
                 
                 # Print batch progress every 10 batches
                 if (batch_idx + 1) % 10 == 0:
-                    print(f"  Epoch [{epoch+1}/{epochs}] Batch [{batch_idx+1}/{len(dataloader)}] "
+                    print(f"  Epoch [{epoch+1}/{epochs}] Batch [{batch_idx+1}/{len(train_dataloader)}] "
                           f"Loss: {loss.item():.4f}, Recon: {recon_loss.item():.4f}, KLD: {kld.item():.4f}")
             
             # Print epoch summary
-            avg_loss = total_loss / len(dataloader)
-            avg_recon = total_recon / len(dataloader)
-            avg_kld = total_kld / len(dataloader)
+            avg_train_loss = total_loss / len(train_dataloader)
+            avg_train_recon = total_recon / len(train_dataloader)
+            avg_train_kld = total_kld / len(train_dataloader)
             
-            print(f"\n[Epoch {epoch+1}/{epochs} Summary]")
-            print(f"  Avg Loss: {avg_loss:.4f}, Avg Recon: {avg_recon:.4f}, Avg KLD: {avg_kld:.4f}")
+            print(f"\n[Epoch {epoch+1}/{epochs} Training Summary]")
+            print(f"  Avg Loss: {avg_train_loss:.4f}, Avg Recon: {avg_train_recon:.4f}, Avg KLD: {avg_train_kld:.4f}")
+            
+            # Validation phase (if validation dataloader provided)
+            if val_dataloader:
+                self.model.eval()
+                val_total_loss = 0
+                val_total_recon = 0
+                val_total_kld = 0
+                
+                with torch.no_grad():
+                    for batch in val_dataloader:
+                        X = batch[0]
+                        X_flat = X.reshape(X.shape[0], -1).to(self.device)
+                        
+                        recon_batch, mu, logvar = self.model(X_flat)
+                        loss, recon_loss, kld = self.vae_loss(recon_batch, X_flat, mu, logvar, beta)
+                        
+                        val_total_loss += loss.item()
+                        val_total_recon += recon_loss.item()
+                        val_total_kld += kld.item()
+                
+                avg_val_loss = val_total_loss / len(val_dataloader)
+                avg_val_recon = val_total_recon / len(val_dataloader)
+                avg_val_kld = val_total_kld / len(val_dataloader)
+                
+                print(f"[Epoch {epoch+1}/{epochs} Validation Summary]")
+                print(f"  Avg Loss: {avg_val_loss:.4f}, Avg Recon: {avg_val_recon:.4f}, Avg KLD: {avg_val_kld:.4f}")
+                
+                # Early stopping check (based on validation reconstruction loss)
+                if avg_val_recon < best_val_recon_loss - min_delta:
+                    best_val_recon_loss = avg_val_recon
+                    patience_counter = 0
+                    # Save best model state
+                    best_model_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+                    print(f"  ✓ New best validation recon loss: {best_val_recon_loss:.4f}")
+                else:
+                    patience_counter += 1
+                    print(f"  ✗ No improvement. Patience: {patience_counter}/{early_stopping_patience}")
+                
+                # Check if early stopping triggered
+                if patience_counter >= early_stopping_patience:
+                    print(f"\n{'='*60}")
+                    print(f"Early stopping triggered at epoch {epoch+1}")
+                    print(f"Best validation recon loss: {best_val_recon_loss:.4f}")
+                    print(f"{'='*60}\n")
+                    
+                    # Restore best model
+                    if best_model_state:
+                        self.model.load_state_dict({k: v.to(self.device) for k, v in best_model_state.items()})
+                        print("Restored best model weights")
+                    break
+            
             print(f"{'-'*60}\n")
+        
+        # If training completed without early stopping, use best model if available
+        if val_dataloader and best_model_state and patience_counter < early_stopping_patience:
+            self.model.load_state_dict({k: v.to(self.device) for k, v in best_model_state.items()})
+            print(f"\nTraining completed. Restored best model with val recon loss: {best_val_recon_loss:.4f}")
     
     def test_and_generate(self, dataloader, num_samples_per_input=5, save_dir=None):
         """
@@ -361,6 +440,8 @@ if __name__ == "__main__":
     from pathlib import Path
     from torch.utils.data import DataLoader
 
+    from constants import SAMPLING_RATE, NUM_OF_SAMPLES_PER_TOKEN, NUM_OF_TOTAL_TOKENS, NUM_WORKERS
+
     target = '*'
     model_name = {'*': "vae_augmentor.pt",
                   'b':"vae_augmentor_benign.pt",
@@ -372,24 +453,26 @@ if __name__ == "__main__":
     # 데이터 경로
     data_dir = "datasets/processed/PMD_samples"
     pattern = f"*_{target}_*.pkl"
-    pkl_files = list(Path(data_dir).rglob(pattern))
-    dataloader = PickleLoader(pkl_files, block_size=20, sampling_rate=2000, sequence_unit=2000)
+    
+    train_pkl_files = list((Path(data_dir)/"train").rglob(pattern))
+    train_dataset = PickleLoader(train_pkl_files, block_size=NUM_OF_TOTAL_TOKENS, sampling_rate=SAMPLING_RATE, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN)
+    train_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=NUM_WORKERS)
 
-    if len(pkl_files) == 0:
+    val_pkl_files = list((Path(data_dir)/"val").rglob(pattern))
+    val_dataset = PickleLoader(val_pkl_files, block_size=NUM_OF_TOTAL_TOKENS, sampling_rate=SAMPLING_RATE, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN)
+    val_dataloader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=NUM_WORKERS)
+
+    if len(train_pkl_files) == 0:
         print(f"No pickle files found in {data_dir}")
         exit(1)
-    
-    print(f"Found {len(pkl_files)} pickle files in {data_dir}")
-    
-    # PickleLoader로 데이터셋 생성
-    dataset = PickleLoader(pkl_files)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=0)
-    
+
+    print(f"Found {len(train_pkl_files)} train files, {len(val_pkl_files)} val files")
+
     print("Loading data from PickleLoader...")
     
     # VAEAugmentor 생성
     # 첫 번째 배치로 input_dim 확인
-    sample_batch = next(iter(dataloader))
+    sample_batch = next(iter(train_dataloader))
     X_sample = sample_batch[0]  # X만 추출
     input_dim = X_sample.shape[1] * X_sample.shape[2]  # block_size * sequence_unit
     
@@ -399,13 +482,17 @@ if __name__ == "__main__":
         hidden_dims=[1024, 512, 256]
     )
     
+    # KL 유지 필요
     print(f"Input dimension: {input_dim}")
     print("Training VAEAugmentor...")
     augmentor.train(
-        dataloader=dataloader,
+        train_dataloader=train_dataloader,
+        val_dataloader=val_dataloader,
         epochs=100,
-        lr=1e-4,
-        beta=0.001
+        lr=5e-4,
+        beta=0.01,
+        early_stopping_patience=5,
+        min_delta=5e-4
     )
     
     # 모델 저장
@@ -419,7 +506,7 @@ if __name__ == "__main__":
     print("="*60)
     
     test_results = augmentor.test_and_generate(
-        dataloader=dataloader,
+        dataloader=val_dataloader,
         num_samples_per_input=5,
         save_dir="vae_test_results"
     )
