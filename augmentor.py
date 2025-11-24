@@ -371,7 +371,7 @@ if __name__ == "__main__":
 
     # 데이터 경로
     data_dir = "datasets/processed/PMD_samples"
-    pattern = f"{target}.pkl"
+    pattern = f"*_{target}_*.pkl"
     pkl_files = list(Path(data_dir).rglob(pattern))
     dataloader = PickleLoader(pkl_files, block_size=20, sampling_rate=2000, sequence_unit=2000)
 
