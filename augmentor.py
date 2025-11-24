@@ -90,7 +90,7 @@ class VAE(nn.Module):
 
 
 class VAEAugmentor:
-    """VAE-based augmentation for EEG signals"""
+    """VAE-based augmentation for signals"""
     
     def __init__(self,
                  pretrained_path=None,
@@ -287,7 +287,7 @@ class VAEAugmentor:
             
             # Generate multiple augmented samples
             for _ in range(num_samples):
-                # Sample from latent space with scaled variance
+                # Augment in latent space by multipling noise
                 z = self.model.reparameterize(mu, logvar, noise_scale=noise_scale)
                 X_aug_flat = self.model.decode(z)
                 
@@ -360,10 +360,19 @@ if __name__ == "__main__":
     import os
     from pathlib import Path
     from torch.utils.data import DataLoader
+
+    target = '*'
+    model_name = {'*': "vae_augmentor.pt",
+                  'b':"vae_augmentor_benign.pt",
+                  'cc':"vae_augmentor_covert_channel.pt",
+                  'm':"vae_augmentor_meltdown.pt",
+                  's':"vae_augmentor_spectre.pt"}
     
+
     # 데이터 경로
     data_dir = "datasets/processed/PMD_samples"
-    pkl_files = list(Path(data_dir).rglob('*.pkl'))
+    pattern = f"{target}.pkl"
+    pkl_files = list(Path(data_dir).rglob(pattern))
     dataloader = PickleLoader(pkl_files, block_size=20, sampling_rate=2000, sequence_unit=2000)
 
     if len(pkl_files) == 0:
@@ -400,7 +409,7 @@ if __name__ == "__main__":
     )
     
     # 모델 저장
-    model_path = "vae_augmentor.pt"
+    model_path = model_name[target]
     augmentor.save_model(model_path)
     print(f"Training complete! Model saved to {model_path}")
     
