@@ -362,8 +362,9 @@ if __name__ == "__main__":
     
     #print(model.VQ.get_tokens(txt_signal_file))
 
-    # sequence_unit은 모델 아키텍처 설정값
-    token_sequence, _ = extract_tokens_from_single_file(model, txt_signal_file, sequence_unit=200, chunk_size=40, device='cuda' if torch.cuda.is_available() else 'cpu')
+    from constants import NUM_OF_SAMPLES_PER_TOKEN, NUM_OF_TOTAL_TOKENS
+
+    token_sequence, _ = extract_tokens_from_single_file(model, txt_signal_file, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN, chunk_size=NUM_OF_TOTAL_TOKENS, device='cuda' if torch.cuda.is_available() else 'cpu')
     print(type(token_sequence))
     print(len(token_sequence))
     print(token_sequence)

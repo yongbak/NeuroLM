@@ -11,7 +11,13 @@ import traceback
 import torch
 
 from augmentor import TimeSeriesAugmentor as TA
-
+from constants import (
+    NUM_OF_SAMPLES_PER_TOKEN,
+    GAUSSIAN_NOISE_MEAN,
+    GAUSSIAN_NOISE_STD,
+    AMPLITUDE_SCALING_MIN,
+    AMPLITUDE_SCALING_MAX
+)
 
 drop_channels = None
 chOrder_standard = ['DEVICE']
@@ -50,8 +56,8 @@ def BuildEvents(signals, times, fs=2000.0):
     [numChan, numPoints] = signals.shape
 
     # 기본 윈도우: 20초 길이, 10초 스텝 (겹침 50%) — 필요하면 인자화할 수 있습니다.
-    window_sec = 20.0
-    step_sec = 10.0
+    window_sec = NUM_OF_SAMPLES_PER_TOKEN / fs
+    step_sec = window_sec * 0.5
     window_samples = int(round(window_sec * fs))
     step_samples = int(round(step_sec * fs))
 
@@ -135,7 +141,7 @@ def load_up_augmented_objects(fileList, Features, Labels, OutDir, augment_factor
             continue
 
         # 구간별로 서로 다른 노이즈 추가, 매우 작은 노이즈
-        gaussian_noised_signals = TA.gaussian_noise(signals, 0, 0.05)
+        gaussian_noised_signals = TA.gaussian_noise(signals, GAUSSIAN_NOISE_MEAN, GAUSSIAN_NOISE_STD)
         gaussian_noised_signals = BuildEvents(gaussian_noised_signals, times)
 
         for f in range(augment_factor):
@@ -162,7 +168,7 @@ def load_up_augmented_objects(fileList, Features, Labels, OutDir, augment_factor
                 )
 
         # 구간별로 서로 다른 진폭변조, 매우 작은 변조
-        amplitude_manipulated_signals = TA.amplitude_scaling(signals, 0.95, 1.05)
+        amplitude_manipulated_signals = TA.amplitude_scaling(signals, AMPLITUDE_SCALING_MIN, AMPLITUDE_SCALING_MAX)
         amplitude_manipulated_signals = BuildEvents(amplitude_manipulated_signals, times)
 
         for f in range(augment_factor):
