@@ -12,6 +12,8 @@ from constants import (
     NUM_OF_TOTAL_SAMPLES,
     NUM_OF_SAMPLES_PER_TOKEN,
     NUM_OF_TOTAL_TOKENS,
+    SAMPLING_RATE,
+    VAE_AUGMENT_FACTOR,
     OFFLINE
 )
 
@@ -105,16 +107,17 @@ def main(args):
     print('prepare dataloader...')
     train_files = list(Path(args.dataset_dir, 'train').rglob('*.pkl'))
     val_files = list(Path(args.dataset_dir, 'val').rglob('*.pkl'))
-    dataset_train = PickleLoader(train_files, block_size=NUM_OF_TOTAL_TOKENS, sampling_rate=2000, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN)
-    dataset_val = PickleLoader(val_files, block_size=NUM_OF_TOTAL_TOKENS, sampling_rate=2000, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN)
+    dataset_train = PickleLoader(train_files, block_size=NUM_OF_TOTAL_TOKENS, sampling_rate=SAMPLING_RATE, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN)
+    dataset_val = PickleLoader(val_files, block_size=NUM_OF_TOTAL_TOKENS, sampling_rate=SAMPLING_RATE, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN)
 
     ### VAE augmentor 적용
-    vae_augmentor = VAEAugmentor(model_path='vae_augmentor_benign.pt')
-    augmented_dataset_train = AugmentedDataset(dataset_train, vae_augmentor, num_augmentations_per_sample=3, noise_scale=0.9, include_original=False)
-    augmented_dataset_val = AugmentedDataset(dataset_val, vae_augmentor, num_augmentations_per_sample=3, noise_scale=0.9, include_original=False)
+    if VAE_AUGMENT_FACTOR > 0:
+        vae_augmentor = VAEAugmentor(pretrained_path='./vae_models/vae_augmentor_benign.pt')
+        augmented_dataset_train = AugmentedDataset(dataset_train, vae_augmentor, num_augmentations_per_sample=VAE_AUGMENT_FACTOR, noise_scale=0.9, include_original=False)
+        augmented_dataset_val = AugmentedDataset(dataset_val, vae_augmentor, num_augmentations_per_sample=VAE_AUGMENT_FACTOR, noise_scale=0.9, include_original=False)
 
-    dataset_train = torch.utils.data.ConcatDataset([dataset_train, augmented_dataset_train])
-    dataset_val = torch.utils.data.ConcatDataset([dataset_val, augmented_dataset_val])
+        dataset_train = torch.utils.data.ConcatDataset([dataset_train, augmented_dataset_train])
+        dataset_val = torch.utils.data.ConcatDataset([dataset_val, augmented_dataset_val])
 
     print('finished!')
 
