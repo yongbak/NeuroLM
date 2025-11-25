@@ -1,21 +1,33 @@
 It needs processed .pkl and .bin.
 
-1. .pkl is actual datasets
-run python dataset_maker/prepare_from_txt_signal.py
+1. Generate .pkl files from .txt datasets
+run python txt_to_pkl.py
 or
 run python dataset_maker/create_dummy_data.py
 
 .pkl datasets are saved at datasets/processed/PMD-samples
 
+Comment: txt_to_pkl.py splits a txt signal file with 80,000 samples into several pkl files. Default setting is 40,000 window, 50% overlap.
+AUGMENT_FACTOR means how many augmented data you would generate.
+This only use two calssic augmentation methods: gaussian noise, amplitude scaling.
 
-2. .bin is binary expression of an natural language dataset
+2. Train VAE augmentor
+Set target = 'b'
+run python augmentor.py
+
+It will create vae_augmentor_benign.pt, which will generate benign data based on VAE
+
+Comment: augmentor.py trains VAEAugmentor with pkl files, which saves vae_augmentor_benign.pt.
+`VAEAugmentor(model_path="path/vae_augmentor_benign.pt")` load pretrained VAE, `AugmentedDataset(original_dataset=Dataset, vae_augmentor=VAEAugmentor)` returns augmented dataset. It should be converted into DataLoader.
+
+3. .bin is binary expression of an natural language dataset
 # https://huggingface.co/datasets/Skylion007/openwebtext
 run python text_dataset_maker/prepare.py
 or
 just load pre-processed REPO_ROOT/datasets/text/train.bin and REPO_ROOT/datasets/text/val.bin
 
 
-3. run train.sh
+4. run train.sh
 python train_vq.py --dataset_dir datasets/processed/PMD_samples --text_dataset_dir datasets/ --out_dir ./vq_output
 
 
