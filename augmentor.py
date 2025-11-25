@@ -35,6 +35,7 @@ class VAE(nn.Module):
         
         self.input_dim = input_dim
         self.latent_dim = latent_dim
+        self.hidden_dims = hidden_dims
         
         # Encoder
         encoder_layers = []
