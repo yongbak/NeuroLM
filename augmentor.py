@@ -30,7 +30,7 @@ class VAE(nn.Module):
     def __init__(self, 
                  input_dim=8000,      # Time series length
                  latent_dim=128,      # Latent space dimension
-                 hidden_dims=[512, 256, 128]):  # Encoder hidden layers
+                 hidden_dims=[1024, 512, 256]):  # Encoder hidden layers
         super().__init__()
         
         self.input_dim = input_dim
@@ -418,6 +418,7 @@ class VAEAugmentor:
             'model_state_dict': self.model.state_dict(),
             'input_dim': self.model.input_dim,
             'latent_dim': self.model.latent_dim,
+            'hidden_dims': self.model.hidden_dims,
         }, path)
         print(f"Model saved to {path}")
     
@@ -428,7 +429,8 @@ class VAEAugmentor:
         # Reinitialize model with saved dimensions
         self.model = VAE(
             input_dim=checkpoint['input_dim'],
-            latent_dim=checkpoint['latent_dim']
+            latent_dim=checkpoint['latent_dim'],
+            hidden_dims=checkpoint.get('hidden_dims', [1024, 512, 256])  # 기존 체크포인트 호환
         ).to(self.device)
         
         self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -590,11 +592,11 @@ if __name__ == "__main__":
     from constants import SAMPLING_RATE, NUM_OF_SAMPLES_PER_TOKEN, NUM_OF_TOTAL_TOKENS, NUM_WORKERS
 
     target = '*'
-    model_name = {'*': "vae_augmentor.pt",
-                  'b':"vae_augmentor_benign.pt",
-                  'cc':"vae_augmentor_covert_channel.pt",
-                  'm':"vae_augmentor_meltdown.pt",
-                  's':"vae_augmentor_spectre.pt"}
+    model_name = {'*': "./vae_models/vae_augmentor.pt",
+                  'b':"./vae_models/vae_augmentor_benign.pt",
+                  'cc':"./vae_models/vae_augmentor_covert_channel.pt",
+                  'm':"./vae_models/vae_augmentor_meltdown.pt",
+                  's':"./vae_models/vae_augmentor_spectre.pt"}
     
 
     # 데이터 경로
