@@ -9,6 +9,7 @@ import os
 import pickle
 import traceback
 import torch
+import random
 
 from augmentor import TimeSeriesAugmentor as TA
 from constants import (
@@ -19,7 +20,7 @@ from constants import (
     AMPLITUDE_SCALING_MAX
 )
 
-AUGMENT_FACTOR = 5      # > 0
+AUGMENT_FACTOR = 1      # > 0
 
 drop_channels = None
 chOrder_standard = ['DEVICE']
@@ -157,17 +158,16 @@ def load_up_augmented_objects(fileList, Features, Labels, OutDir, augment_factor
                 }
                 #print(signal.shape)
 
-                print(
-                    os.path.join(
-                        OutDir, fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
-                    )
-                )
+                # Random prefix to prevent alphabetical clustering
+                random_prefix = f"{random.randint(0, 999999):06d}"
+                basename = fname.split("/")[-1].split(".")[0]
+                filename = f"{random_prefix}_gaussian_noise_{f}_{basename}-{idx}.pkl"
+                
+                print(os.path.join(OutDir, filename))
 
                 save_pickle(
                     sample,
-                    os.path.join(
-                        OutDir, f"gaussian_noise_{f}_" + fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
-                    ),
+                    os.path.join(OutDir, filename),
                 )
 
         # 구간별로 서로 다른 진폭변조, 매우 작은 변조
@@ -185,17 +185,16 @@ def load_up_augmented_objects(fileList, Features, Labels, OutDir, augment_factor
                 }
                 #print(signal.shape)
 
-                print(
-                    os.path.join(
-                        OutDir, fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
-                    )
-                )
+                # Random prefix to prevent alphabetical clustering
+                random_prefix = f"{random.randint(0, 999999):06d}"
+                basename = fname.split("/")[-1].split(".")[0]
+                filename = f"{random_prefix}_amplitude_manipulated_{f}_{basename}-{idx}.pkl"
+                
+                print(os.path.join(OutDir, filename))
 
                 save_pickle(
                     sample,
-                    os.path.join(
-                        OutDir, f"amplitude_manipulated_{f}_" +fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
-                    ),
+                    os.path.join(OutDir, filename),
                 )
 
     return Features, Labels
@@ -231,17 +230,16 @@ def load_up_objects(fileList, Features, Labels, OutDir):
             }
             print(signal.shape)
 
-            print(
-                os.path.join(
-                    OutDir, fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
-                )
-            )
+            # Random prefix to prevent alphabetical clustering
+            random_prefix = f"{random.randint(0, 999999):06d}"
+            basename = fname.split("/")[-1].split(".")[0]
+            filename = f"{random_prefix}_original_{basename}-{idx}.pkl"
+            
+            print(os.path.join(OutDir, filename))
 
             save_pickle(
                 sample,
-                os.path.join(
-                    OutDir, fname.split("/")[-1].split(".")[0] + "-" + str(idx) + ".pkl"
-                ),
+                os.path.join(OutDir, filename),
             )
 
     return Features, Labels
