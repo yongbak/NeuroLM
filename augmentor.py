@@ -589,8 +589,12 @@ if __name__ == "__main__":
     import os
     from pathlib import Path
     from torch.utils.data import ConcatDataset, DataLoader
+    import torch.multiprocessing as mp
 
     from constants import SAMPLING_RATE, NUM_OF_SAMPLES_PER_TOKEN, NUM_OF_TOTAL_TOKENS, NUM_WORKERS
+    
+    # CUDA와 multiprocessing을 함께 사용하기 위해 spawn method 설정
+    mp.set_start_method('spawn', force=True)
 
     target = '*'
     model_name = {'*': "./vae_models/vae_augmentor.pt",
@@ -658,7 +662,7 @@ if __name__ == "__main__":
     # 모델이 완성된 이후에만 AugmentDataset 쓸 수 있음
     test_pkl_files = list((Path(data_dir)/"test").rglob(pattern))
     test_dataset = PickleLoader(test_pkl_files, block_size=NUM_OF_TOTAL_TOKENS, sampling_rate=SAMPLING_RATE, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN)
-    test_dataloader = DataLoader(AugmentedDataset(test_dataset, augmentor, num_augmentations_per_sample=1, noise_scale=0.9, include_original=True))
+    test_dataloader = DataLoader(AugmentedDataset(test_dataset, augmentor, num_augmentations_per_sample=1, noise_scale=0.9, include_original=True), num_workers=NUM_WORKERS)
     
     #test_augmented_dataset = AugmentedDataset(test_dataset, augmentor, num_augmentations_per_sample=1, noise_scale=0.9, include_original=False)
     #test_dataloader = DataLoader(ConcatDataset(test_dataset, test_augmented_dataset), batch_size=64, shuffle=True, num_workers=NUM_WORKERS)
