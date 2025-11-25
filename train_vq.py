@@ -26,6 +26,8 @@ import torch._dynamo.config
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 
+from augmentor import VAEAugmentor, AugmentedDataset
+
 from model.model_vq import VQ_Align
 from model.model_neural_transformer import NTConfig
 from dataset import PickleLoader
@@ -105,6 +107,15 @@ def main(args):
     val_files = list(Path(args.dataset_dir, 'val').rglob('*.pkl'))
     dataset_train = PickleLoader(train_files, block_size=NUM_OF_TOTAL_TOKENS, sampling_rate=2000, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN)
     dataset_val = PickleLoader(val_files, block_size=NUM_OF_TOTAL_TOKENS, sampling_rate=2000, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN)
+
+    ### VAE augmentor 적용
+    vae_augmentor = VAEAugmentor(model_path='vae_augmentor_benign.pt')
+    augmented_dataset_train = AugmentedDataset(dataset_train, vae_augmentor, num_augmentations_per_sample=3, noise_scale=0.9, include_original=False)
+    augmented_dataset_val = AugmentedDataset(dataset_val, vae_augmentor, num_augmentations_per_sample=3, noise_scale=0.9, include_original=False)
+
+    dataset_train = torch.utils.data.ConcatDataset([dataset_train, augmented_dataset_train])
+    dataset_val = torch.utils.data.ConcatDataset([dataset_val, augmented_dataset_val])
+
     print('finished!')
 
     if ddp:

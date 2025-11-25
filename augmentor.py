@@ -5,6 +5,7 @@ import pickle
 import numpy as np
 from pathlib import Path
 from dataset import PickleLoader
+from torch.utils.data import Dataset
 
 # Time series augmentations
 class TimeSeriesAugmentor:
@@ -331,7 +332,7 @@ class VAEAugmentor:
             'augmented': all_augmented
         }
     
-    def AugmentLoader(self, dataset_output, num_samples=1, noise_scale=0.9):
+    def augment_single_sample(self, dataset_output, num_samples=1, noise_scale=0.9):
         """
         Generate augmented dataset outputs from a single dataset sample
         
@@ -434,11 +435,157 @@ class VAEAugmentor:
         print(f"Model loaded from {path}")
 
 
+class AugmentedDataset(Dataset):
+    """
+    Dataset wrapper that augments each sample M times using trained VAE
+    
+    Given N original samples, produces M*N augmented samples
+    """
+    
+    def __init__(self, 
+                 original_dataset: Dataset,
+                 vae_augmentor: VAEAugmentor,
+                 num_augmentations_per_sample=5,
+                 noise_scale=0.9,
+                 include_original=False):
+        """
+        Args:
+            original_dataset: Original dataset (e.g., PickleLoader)
+            vae_augmentor: Trained VAEAugmentor instance
+            num_augmentations_per_sample: Number of augmented versions per original sample (M)
+            noise_scale: Scale factor for latent space noise
+            include_original: If True, include original samples in the dataset
+        """
+        if vae_augmentor is None:
+            raise ValueError("vae_augmentor must be provided")
+
+        self.original_dataset = original_dataset
+        self.vae_augmentor = vae_augmentor
+        self.num_augmentations_per_sample = num_augmentations_per_sample
+        self.noise_scale = noise_scale
+        self.include_original = include_original
+        
+        # Calculate total dataset size
+        self.original_size = len(original_dataset)
+        
+        # N original + M*N augmented = (M+1)*N total
+        self.total_size = num_augmentations_per_sample * self.original_size
+        if include_original:            
+            self.total_size += self.original_size
+        
+        print(f"AugmentedDataset created:")
+        print(f"  Original samples: {self.original_size}")
+        print(f"  Augmentations per sample: {num_augmentations_per_sample}")
+        print(f"  Include original: {include_original}")
+        print(f"  Total samples: {self.total_size}")
+    
+    def __len__(self):
+        """Return total number of samples (original + augmented)"""
+        return self.total_size
+    
+    def __getitem__(self, idx):
+        """
+        Get sample at index
+        
+        If include_original=True:
+            - idx 0 to N-1: original samples
+            - idx N to (M+1)*N-1: augmented samples
+        
+        If include_original=False:
+            - idx 0 to M*N-1: augmented samples only
+        """
+        if self.include_original:
+            # Original samples come first
+            if idx < self.original_size:
+                # Return original sample
+                return self.original_dataset[idx]
+            else:
+                # Calculate which original sample to augment
+                # OriginalA 1개, augmentationA N개, ... 순서로 등장
+                aug_idx = idx - self.original_size
+                original_idx = aug_idx // self.num_augmentations_per_sample
+                
+                # Get original sample
+                original_sample = self.original_dataset[original_idx]
+                
+                # Generate augmented version
+                augmented_samples = self.vae_augmentor.augment_single_sample(
+                    original_sample, 
+                    num_samples=1,
+                    noise_scale=self.noise_scale
+                )
+                
+                # num_samples=1로 세팅하고 항상 새로 반환하므로, 첫 번째 원소 반환
+                return augmented_samples[0]
+        else:
+            # Only augmented samples
+            # Calculate which original sample to augment
+            original_idx = idx // self.num_augmentations_per_sample
+            
+            # Get original sample
+            original_sample = self.original_dataset[original_idx]
+            
+            # Generate augmented version
+            augmented_samples = self.vae_augmentor.augment_single_sample(
+                original_sample,
+                num_samples=1,
+                noise_scale=self.noise_scale
+            )
+            
+            return augmented_samples[0]
+
+
+def create_augmented_dataloader(original_dataset,
+                                vae_augmentor,
+                                num_augmentations_per_sample=5,
+                                noise_scale=0.9,
+                                include_original=True,
+                                batch_size=32,
+                                shuffle=True,
+                                num_workers=0):
+    """
+    Create a DataLoader with augmented dataset
+    
+    Args:
+        original_dataset: Original dataset (N samples)
+        vae_augmentor: Trained VAEAugmentor
+        num_augmentations_per_sample: M augmentations per sample
+        noise_scale: Latent space noise scale
+        include_original: Include original samples
+        batch_size: Batch size for DataLoader
+        shuffle: Shuffle dataset
+        num_workers: Number of worker processes
+    
+    Returns:
+        DataLoader with M*N or (M+1)*N samples
+    """
+    from torch.utils.data import DataLoader
+    
+    augmented_dataset = AugmentedDataset(
+        original_dataset=original_dataset,
+        vae_augmentor=vae_augmentor,
+        num_augmentations_per_sample=num_augmentations_per_sample,
+        noise_scale=noise_scale,
+        include_original=include_original
+    )
+    
+    dataloader = DataLoader(
+        augmented_dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers
+    )
+    
+    print(f"Created DataLoader with {len(augmented_dataset)} samples, batch_size={batch_size}")
+    
+    return dataloader
+
+
 if __name__ == "__main__":
     import glob
     import os
     from pathlib import Path
-    from torch.utils.data import DataLoader
+    from torch.utils.data import ConcatDataset, DataLoader
 
     from constants import SAMPLING_RATE, NUM_OF_SAMPLES_PER_TOKEN, NUM_OF_TOTAL_TOKENS, NUM_WORKERS
 
@@ -505,13 +652,57 @@ if __name__ == "__main__":
     print("Testing VAE and generating augmented samples...")
     print("="*60)
     
+    # 모델이 완성된 이후에만 AugmentDataset 쓸 수 있음
+    test_pkl_files = list((Path(data_dir)/"test").rglob(pattern))
+    test_dataset = PickleLoader(test_pkl_files, block_size=NUM_OF_TOTAL_TOKENS, sampling_rate=SAMPLING_RATE, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN)
+    test_dataloader = DataLoader(AugmentedDataset(test_dataset, augmentor, num_augmentations_per_sample=1, noise_scale=0.9, include_original=True))
+    
+    #test_augmented_dataset = AugmentedDataset(test_dataset, augmentor, num_augmentations_per_sample=1, noise_scale=0.9, include_original=False)
+    #test_dataloader = DataLoader(ConcatDataset(test_dataset, test_augmented_dataset), batch_size=64, shuffle=True, num_workers=NUM_WORKERS)
+
+
     test_results = augmentor.test_and_generate(
-        dataloader=val_dataloader,
+        dataloader=test_dataloader,
         num_samples_per_input=5,
         save_dir="vae_test_results"
     )
     
     print(f"\nTest complete!")
     print(f"Generated {len(test_results['augmented'])} sets of augmented samples")
+    
+    # ============================================================
+    # Example: Create augmented dataset with M augmentations per sample
+    # ============================================================
+    print("\n" + "="*60)
+    print("Creating Augmented Dataset (M * N samples)")
+    print("="*60)
+    
+    # Load trained augmentor
+    trained_augmentor = VAEAugmentor(pretrained_path=model_path)
+    
+    # Create augmented dataset
+    # N original samples → M*N augmented samples (or (M+1)*N if include_original=True)
+    augmented_train_dataloader = create_augmented_dataloader(
+        original_dataset=train_dataset,
+        vae_augmentor=trained_augmentor,
+        num_augmentations_per_sample=5,  # M=5: each sample gets 5 augmented versions
+        noise_scale=0.9,
+        include_original=True,  # Include original samples too
+        batch_size=64,
+        shuffle=True,
+        num_workers=NUM_WORKERS
+    )
+    
+    print(f"\nOriginal dataset size: {len(train_dataset)} samples")
+    print(f"Augmented dataset size: {len(augmented_train_dataloader.dataset)} samples")
+    print(f"Augmentation factor: {len(augmented_train_dataloader.dataset) / len(train_dataset):.1f}x")
+    
+    # Test the augmented dataloader
+    print("\nTesting augmented dataloader...")
+    sample_batch = next(iter(augmented_train_dataloader))
+    print(f"Batch X shape: {sample_batch[0].shape}")
+    print(f"Batch Y_freq shape: {sample_batch[1].shape}")
+    print(f"Batch Y_raw shape: {sample_batch[2].shape}")
+    
     print("Done!")
     
