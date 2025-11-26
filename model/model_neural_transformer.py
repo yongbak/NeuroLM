@@ -173,11 +173,12 @@ class NeuralTransformer(nn.Module):
         # add position and temporal embeddings
         pos_embed_used = self.pos_embed(input_chans)
         # print(f"🔍 [NeuralTransformer] pos_embed shape: {pos_embed_used.shape}")
-        x = x + pos_embed_used
+        #x = x + pos_embed_used
         
         time_embed = self.time_embed(input_times)
         # print(f"🔍 [NeuralTransformer] time_embed shape: {time_embed.shape}")
-        x = x + time_embed
+        # Scale down time embedding to prevent domination over EEG signals
+        x = x + 0.05 * time_embed
         # print(f"🔍 [NeuralTransformer] After adding embeddings: {x.shape}")
 
         x = self.pos_drop(x)

@@ -70,7 +70,7 @@ class PickleLoader(Dataset):
         data = sample["X"]
         ch_names = sample["ch_names"]
         # print(f"🔍 [Dataset] Original data shape: {data.shape}, channels: {len(ch_names)}")
-        data = torch.FloatTensor(data / 100)
+        data = torch.FloatTensor(data)
 
         time = data.size(1) // self.sequence_unit
         input_time = [i  for i in range(time) for _ in range(data.size(0))]
