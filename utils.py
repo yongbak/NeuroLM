@@ -10,6 +10,8 @@ import os
 from downstream_dataset import TUABLoader, TUEVLoader, TUSLLoader, HMCLoader, WorkloadLoader
 from metrics import binary_metrics_fn, multiclass_metrics_fn
 
+from constants import CODEBOOK_SIZE
+
 def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epochs=0,
                      start_warmup_value=0, warmup_steps=-1):
     warmup_schedule = np.array([])
@@ -77,7 +79,7 @@ def load_vq_model(checkpoint_path, device='cuda', offline=True):
     # Create model
     encoder_conf = NTConfig(**encoder_args)
     decoder_conf = NTConfig(**decoder_args)
-    model = VQ_Align(encoder_conf, decoder_conf, offline=offline)
+    model = VQ_Align(encoder_conf, decoder_conf, n_embed=CODEBOOK_SIZE, offline=offline)
     
     # Load state dict
     state_dict = checkpoint['model']
