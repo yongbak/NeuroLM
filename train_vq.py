@@ -14,6 +14,9 @@ from constants import (
     NUM_OF_TOTAL_TOKENS,
     SAMPLING_RATE,
     VAE_AUGMENT_FACTOR,
+    CODEBOOK_SIZE,
+    DECAY,
+    BETA,
     OFFLINE
 )
 
@@ -179,9 +182,10 @@ def main(args):
         decoder_conf = NTConfig(**decoder_args)
         model = VQ_Align(encoder_conf, decoder_conf,
                          # Patch size, 1개 토큰이 커버하는 샘플 개수는 encoder_conf에 존재
-                         n_embed=2048,
+                         n_embed=CODEBOOK_SIZE,
                          embed_dim=128,
-                         decay=0.95,
+                         decay=DECAY,  # Lowered from 0.95 to reduce past bias and prevent collapse
+                         beta=BETA,    # Increased commitment loss to prevent collapse
                          offline=OFFLINE)
         start_epoch = 0
     elif init_from == 'resume':
@@ -201,9 +205,10 @@ def main(args):
         encoder_conf = NTConfig(**encoder_args)
         decoder_conf = NTConfig(**decoder_args)
         model = VQ_Align(encoder_conf, decoder_conf,
-                         n_embed=2048,
+                         n_embed=CODEBOOK_SIZE,
                          embed_dim=128,
-                         decay=0.95,
+                         decay=DECAY,  # Lowered from 0.95 to reduce past bias and prevent collapse
+                         beta=BETA,    # Increased commitment loss to prevent collapse
                          offline=OFFLINE)
         state_dict = checkpoint['model']
         # fix the keys of the state dictionary :(
@@ -253,7 +258,7 @@ def main(args):
     )
 
     # 코드북 사용률 추적을 위한 변수
-    codebook_usage_tracker = torch.zeros(2048, dtype=torch.long, device=device)  # 2048개 코드북
+    codebook_usage_tracker = torch.zeros(CODEBOOK_SIZE, dtype=torch.long, device=device)  # CODEBOOK_SIZE개 코드북
     codebook_log_interval = 10  # 100 iter마다 로깅
 
     # training loop
@@ -331,7 +336,7 @@ def main(args):
                 
                 # 코드북 사용률 계산 (최근 log_interval 동안의 사용)
                 used_codes = (codebook_usage_tracker > 0).sum().item()
-                codebook_usage_rate = used_codes / 2048 * 100
+                codebook_usage_rate = used_codes / CODEBOOK_SIZE * 100
                 
                 # Top 10 가장 많이 사용된 코드
                 top_k = min(10, used_codes) if used_codes > 0 else 0
@@ -349,8 +354,8 @@ def main(args):
                       f"raw: {log['train/rec_raw_loss']:.4f}, "
                       f"quant: {log['train/quant_loss']:.4f}, "
                       f"domain: {log['train/domain_loss'] + domain_loss2.item():.4f}) "
-                      f"LR: {lr:.2e} "
-                      f"📊 Codebook: {used_codes}/2048 ({codebook_usage_rate:.1f}%) Top5:[{top_indices_str}]")
+                      f"LR: {lr:.2e} \n"
+                      f"📊 Codebook: {used_codes}/{CODEBOOK_SIZE} ({codebook_usage_rate:.1f}%) Top5:[{top_indices_str}]")
 
                 if args.wandb_log:
                     wandb.log({
@@ -381,7 +386,7 @@ def main(args):
         # === validation loop ===
         model.eval()
         val_losses = []
-        val_codebook_usage = torch.zeros(2048, dtype=torch.long, device=device)  # validation용 코드북 추적
+        val_codebook_usage = torch.zeros(CODEBOOK_SIZE, dtype=torch.long, device=device)  # validation용 코드북 추적
         
         with torch.no_grad():
             for val_batch in data_loader_val:
@@ -407,7 +412,7 @@ def main(args):
         
         # Validation 코드북 사용률 계산
         val_used_codes = (val_codebook_usage > 0).sum().item()
-        val_usage_rate = val_used_codes / 2048 * 100
+        val_usage_rate = val_used_codes / CODEBOOK_SIZE * 100
         
         # 가장 많이 사용된 코드 Top 5
         top_codes = torch.topk(val_codebook_usage, k=min(5, val_used_codes))
@@ -420,7 +425,7 @@ def main(args):
             print(f"\n{'='*80}")
             print(f"[Epoch {epoch + 1}] Validation Results:")
             print(f"  Total Loss: {val_total_loss:.4f}")
-            print(f"  📊 Codebook Usage: {val_used_codes}/2048 ({val_usage_rate:.1f}%)")
+            print(f"  📊 Codebook Usage: {val_used_codes}/{CODEBOOK_SIZE} ({val_usage_rate:.1f}%)")
             print(f"  Top 5 most used codes:")
             for i, (idx, count) in enumerate(zip(top_indices, top_counts)):
                 print(f"    {i+1}. Code {idx}: {count} times")
