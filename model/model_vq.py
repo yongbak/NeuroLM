@@ -50,6 +50,7 @@ class VQ(nn.Module):
                  n_embed=2048, 
                  embed_dim=128,
                  decay=0.99,
+                 beta=0.25,
                  quantize_kmeans_init=True,
                  smooth_l1_loss = False,
                  **kwargs
@@ -232,6 +233,7 @@ class VQ_Align(nn.Module):
                  n_embed=2048,
                  embed_dim=128,
                  decay=0.99,
+                 beta=0.25,
                  offline=False
                  ):
         super(VQ_Align, self).__init__()
@@ -240,6 +242,7 @@ class VQ_Align(nn.Module):
                      n_embed=n_embed,
                      embed_dim=embed_dim,
                      decay=decay,
+                     beta=beta,
                      decoder_out_dim=encoder_config.patch_size)
         
         self.domain_classifier = nn.Sequential(
