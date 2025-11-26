@@ -249,6 +249,9 @@ def main(args):
         warmup_epochs=args.warmup_epochs
     )
 
+    # 코드북 사용률 추적을 위한 변수
+    codebook_usage_tracker = torch.zeros(2048, dtype=torch.long, device=device)  # 2048개 코드북
+    codebook_log_interval = 10  # 100 iter마다 로깅
 
     # training loop
     X_text, Y_text = get_batch('train') # fetch the very first batch
@@ -292,6 +295,17 @@ def main(args):
                 loss, domain_loss, log = model(X, Y_freq, Y_raw, input_chans, input_time, input_mask, alpha)
                 domain_loss2 = model(X_text)
                 loss = (loss + domain_loss + domain_loss2) / args.gradient_accumulation_steps # scale the loss to account for gradient accumulation
+            
+            # 코드북 사용률 추적 (학습 중)
+            with torch.no_grad():
+                # 현재 배치의 코드북 인덱스 얻기
+                mask = input_mask.unsqueeze(1).repeat(1, X.size(1), 1).unsqueeze(1)
+                _, embed_ind, _, _ = raw_model.VQ.encode(X, input_chans, input_time, mask)
+                # 사용된 인덱스 카운트 (flatten해서 모든 토큰 인덱스 추출)
+                indices = embed_ind.flatten()
+                for idx in indices:
+                    codebook_usage_tracker[idx] += 1
+            
             # immediately async prefetch next batch while model is doing the forward pass on the GPU
             # backward pass, with gradient scaling if training in fp16
             scaler.scale(loss).backward()
@@ -312,6 +326,18 @@ def main(args):
                 total_batches = len(dataset_train) // args.batch_size
                 progress_pct = (step + 1) / num_training_steps_per_epoch * 100
                 
+                # 코드북 사용률 계산 (최근 log_interval 동안의 사용)
+                used_codes = (codebook_usage_tracker > 0).sum().item()
+                codebook_usage_rate = used_codes / 2048 * 100
+                
+                # Top 10 가장 많이 사용된 코드
+                top_k = min(10, used_codes) if used_codes > 0 else 0
+                if top_k > 0:
+                    top_codes = torch.topk(codebook_usage_tracker, k=top_k)
+                    top_indices_str = ','.join([str(idx.item()) for idx in top_codes.indices[:5]])
+                else:
+                    top_indices_str = "None"
+                
                 print(f"[Epoch {epoch + 1}/{args.epochs}] "
                       f"[Batch {step + 1}/{num_training_steps_per_epoch} ({progress_pct:.1f}%)] "
                       f"[Iter {iter_num + 1}] "
@@ -320,7 +346,8 @@ def main(args):
                       f"raw: {log['train/rec_raw_loss']:.4f}, "
                       f"quant: {log['train/quant_loss']:.4f}, "
                       f"domain: {log['train/domain_loss'] + domain_loss2.item():.4f}) "
-                      f"LR: {lr:.2e}")
+                      f"LR: {lr:.2e} "
+                      f"📊 Codebook: {used_codes}/2048 ({codebook_usage_rate:.1f}%) Top5:[{top_indices_str}]")
 
                 if args.wandb_log:
                     wandb.log({
@@ -330,8 +357,13 @@ def main(args):
                         "train/raw_loss": log['train/rec_raw_loss'],
                         "train/quant_loss": log['train/quant_loss'],
                         "train/domain_loss": log['train/domain_loss'] + domain_loss2.item(),
-                        "lr": lr
+                        "lr": lr,
+                        "codebook/used_codes": used_codes,
+                        "codebook/usage_rate": codebook_usage_rate
                     })
+                
+                # 로그 출력 후 tracker 리셋 (최근 사용 패턴만 보기 위해)
+                codebook_usage_tracker.zero_()
             
             X_text, Y_text = get_batch('train') # fetch the very first batch
 
@@ -346,6 +378,8 @@ def main(args):
         # === validation loop ===
         model.eval()
         val_losses = []
+        val_codebook_usage = torch.zeros(2048, dtype=torch.long, device=device)  # validation용 코드북 추적
+        
         with torch.no_grad():
             for val_batch in data_loader_val:
                 X, Y_freq, Y_raw, input_chans, input_time, input_mask = val_batch
@@ -358,13 +392,44 @@ def main(args):
                 alpha = 0.0  # validation에서는 domain loss 영향 없음
                 loss, domain_loss, log = model(X, Y_freq, Y_raw, input_chans, input_time, input_mask, alpha)
                 val_losses.append(log['val/total_loss'])
+                
+                # Validation 코드북 사용률 추적
+                mask = input_mask.unsqueeze(1).repeat(1, X.size(1), 1).unsqueeze(1)
+                _, embed_ind, _, _ = raw_model.VQ.encode(X, input_chans, input_time, mask)
+                indices = embed_ind.flatten()
+                for idx in indices:
+                    val_codebook_usage[idx] += 1
+                    
         val_total_loss = float(torch.tensor(val_losses).mean().item())
+        
+        # Validation 코드북 사용률 계산
+        val_used_codes = (val_codebook_usage > 0).sum().item()
+        val_usage_rate = val_used_codes / 2048 * 100
+        
+        # 가장 많이 사용된 코드 Top 5
+        top_codes = torch.topk(val_codebook_usage, k=min(5, val_used_codes))
+        top_indices = top_codes.indices.cpu().tolist()
+        top_counts = top_codes.values.cpu().tolist()
+        
         model.train()
 
         if master_process:
-            print(f"[Epoch {epoch + 1}] Validation total_loss: {val_total_loss:.4f}")
+            print(f"\n{'='*80}")
+            print(f"[Epoch {epoch + 1}] Validation Results:")
+            print(f"  Total Loss: {val_total_loss:.4f}")
+            print(f"  📊 Codebook Usage: {val_used_codes}/2048 ({val_usage_rate:.1f}%)")
+            print(f"  Top 5 most used codes:")
+            for i, (idx, count) in enumerate(zip(top_indices, top_counts)):
+                print(f"    {i+1}. Code {idx}: {count} times")
+            print(f"{'='*80}\n")
+            
             if args.wandb_log:
-                wandb.log({"epoch": epoch + 1, "val/total_loss": val_total_loss})
+                wandb.log({
+                    "epoch": epoch + 1, 
+                    "val/total_loss": val_total_loss,
+                    "val/codebook_used": val_used_codes,
+                    "val/codebook_usage_rate": val_usage_rate
+                })
 
             # early stopping 체크
             if val_total_loss < best_val_loss:
