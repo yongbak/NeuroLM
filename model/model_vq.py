@@ -70,7 +70,7 @@ class VQ(nn.Module):
         self.decoder_raw = NeuralTransformer(decoder_config)
                 
         self.quantize = NormEMAVectorQuantizer(
-            n_embed=n_embed, embedding_dim=embed_dim, beta=1.0, kmeans_init=quantize_kmeans_init, decay=decay,
+            n_embed=n_embed, embedding_dim=embed_dim, beta=beta, kmeans_init=quantize_kmeans_init, decay=decay,
         )
 
         self.decoder_out_dim = encoder_config.patch_size
