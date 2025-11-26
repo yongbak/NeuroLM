@@ -37,6 +37,9 @@ from pathlib import Path
 from utils import cosine_scheduler
 import math
 
+import torch.multiprocessing as mp
+# CUDA와 multiprocessing을 함께 사용하기 위해 spawn method 설정
+mp.set_start_method('spawn', force=True)
 
 master_process = None; device = None; dtype = None
 ctx = None; ddp_rank = None; device_type = None
