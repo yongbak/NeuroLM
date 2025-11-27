@@ -72,7 +72,9 @@ def init(args):
         seed_offset = 0
         ddp_world_size = 1
 
-    torch.manual_seed(args.seed + seed_offset)
+    import time
+    torch.manual_seed(time.time_ns())
+    #torch.manual_seed(args.seed + seed_offset)
     torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
     torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
     device_type = 'cuda' if 'cuda' in device else 'cpu' # for later use in torch.autocast
