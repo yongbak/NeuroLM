@@ -17,7 +17,8 @@ from constants import (
     CODEBOOK_SIZE,
     DECAY,
     BETA,
-    OFFLINE
+    OFFLINE,
+    DEBUG_ENCODER
 )
 
 import os
@@ -313,7 +314,7 @@ def main(args):
                 _, embed_ind, _, encoder_features = raw_model.VQ.encode(X, input_chans, input_time, mask)
                 
                 # 🔬 인코더 출력 유사성 진단 (매 10 iterations)
-                if iter_num % 10 == 0:
+                if DEBUG_ENCODER and iter_num % 10 == 0:
                     # Encoder output을 flatten하고 normalize
                     enc_flat = encoder_features.reshape(-1, encoder_features.size(-1))  # (batch*tokens, dim)
                     enc_norm = torch.nn.functional.normalize(enc_flat, p=2, dim=-1)

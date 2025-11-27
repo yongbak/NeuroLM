@@ -21,16 +21,22 @@ EMBEDDING_DIMENSION = 128
 OFFLINE = False
 
 '''
-Avg similarity:
+- 전체 배치의 모든 토큰들을 하나의 풀로 만듦
+- 그 중 랜덤하게 100개 선택
+- 100개 토큰들 간의 모든 쌍(pair)의 유사도 계산
+- 100*99/2 = 4950개의 쌍
 
+Avg similarity:
 0.9 이상: 인코더 출력 거의 동일 → 문제!
 0.7~0.9: 약간 유사 → 정상 범위 (같은 도메인이니까)
 0.5 이하: 매우 다양함 → 이상적
-Feature std:
 
+Feature std:
 0.01 이하: Collapsed → 문제!
 0.05~0.2: 정상
 0.3 이상: 매우 다양함
+
+
 '''
 DEBUG_ENCODER = True    
 
