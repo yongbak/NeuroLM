@@ -20,6 +20,20 @@ EMBEDDING_DIMENSION = 128
 
 OFFLINE = False
 
+'''
+Avg similarity:
+
+0.9 이상: 인코더 출력 거의 동일 → 문제!
+0.7~0.9: 약간 유사 → 정상 범위 (같은 도메인이니까)
+0.5 이하: 매우 다양함 → 이상적
+Feature std:
+
+0.01 이하: Collapsed → 문제!
+0.05~0.2: 정상
+0.3 이상: 매우 다양함
+'''
+DEBUG_ENCODER = True    
+
 ## Data Augmentation Parameters
 GAUSSIAN_NOISE_MEAN = 0.0
 GAUSSIAN_NOISE_STD = 0.05

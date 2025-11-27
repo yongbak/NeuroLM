@@ -310,7 +310,35 @@ def main(args):
             with torch.no_grad():
                 # 현재 배치의 코드북 인덱스 얻기
                 mask = input_mask.unsqueeze(1).repeat(1, X.size(1), 1).unsqueeze(1)
-                _, embed_ind, _, _ = raw_model.VQ.encode(X, input_chans, input_time, mask)
+                _, embed_ind, _, encoder_features = raw_model.VQ.encode(X, input_chans, input_time, mask)
+                
+                # 🔬 인코더 출력 유사성 진단 (매 10 iterations)
+                if iter_num % 10 == 0:
+                    # Encoder output을 flatten하고 normalize
+                    enc_flat = encoder_features.reshape(-1, encoder_features.size(-1))  # (batch*tokens, dim)
+                    enc_norm = torch.nn.functional.normalize(enc_flat, p=2, dim=-1)
+                    
+                    # 샘플링 (너무 크면)
+                    n_samples = min(100, enc_norm.size(0))
+                    if enc_norm.size(0) > n_samples:
+                        idx = torch.randperm(enc_norm.size(0))[:n_samples]
+                        enc_sample = enc_norm[idx]
+                    else:
+                        enc_sample = enc_norm
+                    
+                    # Pairwise cosine similarity
+                    sim_matrix = torch.mm(enc_sample, enc_sample.t())
+                    # 대각선 제외
+                    mask_diag = ~torch.eye(sim_matrix.size(0), dtype=torch.bool, device=sim_matrix.device)
+                    avg_sim = sim_matrix[mask_diag].mean().item()
+                    
+                    # Feature 표준편차 (다양성 지표)
+                    feature_std = enc_flat.std(dim=0).mean().item()
+                    
+                    print(f"\n🔬 Encoder Diversity (iter {iter_num}):")
+                    print(f"  Avg similarity: {avg_sim:.4f} (1.0=identical, 0.0=orthogonal)")
+                    print(f"  Feature std: {feature_std:.4f} (0.0=collapsed)")
+                
                 # 사용된 인덱스 카운트 (flatten해서 모든 토큰 인덱스 추출)
                 indices = embed_ind.flatten()
                 for idx in indices:
