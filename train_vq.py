@@ -189,7 +189,8 @@ def main(args):
                          embed_dim=128,
                          decay=DECAY,  # Lowered from 0.95 to reduce past bias and prevent collapse
                          beta=BETA,    # Increased commitment loss to prevent collapse
-                         offline=OFFLINE)
+                         offline=OFFLINE,
+                         dead_code_threshold=args.dead_code_threshold)
         start_epoch = 0
     elif init_from == 'resume':
         print(f"Resuming training from {checkpoint_out_dir}")
@@ -212,7 +213,8 @@ def main(args):
                          embed_dim=128,
                          decay=DECAY,  # Lowered from 0.95 to reduce past bias and prevent collapse
                          beta=BETA,    # Increased commitment loss to prevent collapse
-                         offline=OFFLINE)
+                         offline=OFFLINE,
+                         dead_code_threshold=args.dead_code_threshold)
         state_dict = checkpoint['model']
         # fix the keys of the state dictionary :(
         # honestly no idea how checkpoints sometimes get this prefix, have to debug more
@@ -542,6 +544,10 @@ def get_args():
                         help='clip gradients at this value, or disable if == 0.0')
     parser.add_argument('--decay_lr', default=True, action='store_false')
     parser.add_argument('--seed', default=1337, type=int)
+    
+    # VQ-VAE specific args
+    parser.add_argument('--dead_code_threshold', type=float, default=1.0,
+                        help='Dead code reset threshold. Codes with cluster_size below this will be reset. 0.0 disables.')
 
     parser.add_argument('--compile', default=False, action='store_true')
 

@@ -117,12 +117,14 @@ def norm_ema_inplace(moving_avg, new, decay):
 
 class NormEMAVectorQuantizer(nn.Module):
     def __init__(self, n_embed, embedding_dim, beta, decay=0.99, eps=1e-5, 
-                statistic_code_usage=True, kmeans_init=False, codebook_init_path=''):
+                statistic_code_usage=True, kmeans_init=False, codebook_init_path='',
+                dead_code_threshold=0.0):
         super().__init__()
         self.codebook_dim = embedding_dim
         self.num_tokens = n_embed
         self.beta = beta
         self.decay = decay
+        self.dead_code_threshold = dead_code_threshold  # Dead code 판정 임계값 (0.0 = 사용안됨)
         
         # learnable = True if orthogonal_reg_weight > 0 else False
         self.embedding = EmbeddingEMA(self.num_tokens, self.codebook_dim, decay, eps, kmeans_init, codebook_init_path)
@@ -130,6 +132,8 @@ class NormEMAVectorQuantizer(nn.Module):
         self.statistic_code_usage = statistic_code_usage
         if statistic_code_usage:
             self.register_buffer('cluster_size', torch.zeros(n_embed))
+            # Dead code tracking을 위한 버퍼 추가
+            self.register_buffer('code_usage_count', torch.zeros(n_embed))
         if distributed.is_available() and distributed.is_initialized():
             print("ddp is enable, so use ddp_reduce to sync the statistic_code_usage for each gpu!")
             self.all_reduce_fn = distributed.all_reduce
@@ -140,6 +144,58 @@ class NormEMAVectorQuantizer(nn.Module):
         if self.statistic_code_usage:
             self.register_buffer('cluster_size', torch.zeros(self.num_tokens))
             self.cluster_size = self.cluster_size.to(device)
+            self.register_buffer('code_usage_count', torch.zeros(self.num_tokens))
+            self.code_usage_count = self.code_usage_count.to(device)
+    
+    def reset_dead_codes(self, z_flattened, encoding_indices):
+        """
+        Dead code를 활성 샘플로 재초기화
+        
+        Args:
+            z_flattened: 현재 배치의 인코더 출력 (N, D)
+            encoding_indices: 현재 배치의 양자화 인덱스 (N,)
+        """
+        if not self.training or self.dead_code_threshold <= 0:
+            return
+        
+        # Dead code 찾기 (cluster_size가 임계값 이하인 코드)
+        dead_codes = (self.cluster_size < self.dead_code_threshold).nonzero(as_tuple=True)[0]
+        
+        if len(dead_codes) == 0:
+            return
+        
+        # 현재 배치에서 가장 많이 사용된 코드의 샘플들 찾기
+        bins = torch.bincount(encoding_indices, minlength=self.num_tokens)
+        most_used_code = bins.argmax()
+        
+        # 가장 많이 사용된 코드에 할당된 샘플들의 인덱스
+        active_samples_mask = (encoding_indices == most_used_code)
+        active_samples = z_flattened[active_samples_mask]
+        
+        if len(active_samples) == 0:
+            return
+        
+        # Dead code들을 랜덤 샘플로 재초기화
+        n_dead = len(dead_codes)
+        n_samples = len(active_samples)
+        
+        # 샘플 선택 (랜덤하게)
+        if n_samples >= n_dead:
+            indices = torch.randperm(n_samples, device=z_flattened.device)[:n_dead]
+        else:
+            indices = torch.randint(0, n_samples, (n_dead,), device=z_flattened.device)
+        
+        reset_samples = active_samples[indices]
+        reset_samples = l2norm(reset_samples)  # Normalize
+        
+        # Dead code들의 임베딩을 업데이트
+        with torch.no_grad():
+            self.embedding.weight.data[dead_codes] = reset_samples
+            # Cluster size도 약간의 값으로 초기화 (완전 0이면 다시 dead가 됨)
+            self.cluster_size.data[dead_codes] = self.dead_code_threshold + 1.0
+            
+        #print(f"🔄 Reset {len(dead_codes)} dead codes (cluster_size < {self.dead_code_threshold})")
+        #print(f"   Dead codes: {dead_codes[:10].tolist()}{'...' if len(dead_codes) > 10 else ''}")
 
     def forward(self, z):
         # reshape z -> (batch, height, width, channel) and flatten
@@ -187,6 +243,9 @@ class NormEMAVectorQuantizer(nn.Module):
                                            embed_normalized)
 
             norm_ema_inplace(self.embedding.weight, embed_normalized, self.decay)
+            
+            # Dead code reset 적용
+            self.reset_dead_codes(z_flattened, encoding_indices)
 
         # compute loss for embedding
         loss = self.beta * F.mse_loss(z_q.detach(), z) 

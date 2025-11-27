@@ -53,6 +53,7 @@ class VQ(nn.Module):
                  beta=0.25,
                  quantize_kmeans_init=True,
                  smooth_l1_loss = False,
+                 dead_code_threshold=1.0,  # Dead code reset 임계값
                  **kwargs
                  ):
         super().__init__()
@@ -70,7 +71,8 @@ class VQ(nn.Module):
         self.decoder_raw = NeuralTransformer(decoder_config)
                 
         self.quantize = NormEMAVectorQuantizer(
-            n_embed=n_embed, embedding_dim=embed_dim, beta=beta, kmeans_init=quantize_kmeans_init, decay=decay,
+            n_embed=n_embed, embedding_dim=embed_dim, beta=beta, kmeans_init=quantize_kmeans_init, 
+            decay=decay, dead_code_threshold=dead_code_threshold,
         )
 
         self.decoder_out_dim = encoder_config.patch_size
@@ -234,7 +236,8 @@ class VQ_Align(nn.Module):
                  embed_dim=128,
                  decay=0.99,
                  beta=0.25,
-                 offline=False
+                 offline=False,
+                 dead_code_threshold=1.0,  # Dead code reset 임계값
                  ):
         super(VQ_Align, self).__init__()
         
@@ -243,7 +246,8 @@ class VQ_Align(nn.Module):
                      embed_dim=embed_dim,
                      decay=decay,
                      beta=beta,
-                     decoder_out_dim=encoder_config.patch_size)
+                     decoder_out_dim=encoder_config.patch_size,
+                     dead_code_threshold=dead_code_threshold)
         
         self.domain_classifier = nn.Sequential(
                 nn.Linear(decoder_config.n_embd, 256),
