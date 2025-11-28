@@ -338,9 +338,10 @@ def main(args):
                     # Feature 표준편차 (다양성 지표)
                     feature_std = enc_flat.std(dim=0).mean().item()
                     
+                    print("")
                     print(f"🔬 Encoder Diversity (iter {iter_num}):")
                     print(f"  Avg similarity: {avg_sim:.4f} (1.0=identical, 0.0=orthogonal)")
-                    print(f"  Feature std: {feature_std:.4f} (0.0=collapsed)\n")
+                    print(f"  Feature std: {feature_std:.4f} (0.0=collapsed)")
                 
                 # 사용된 인덱스 카운트 (flatten해서 모든 토큰 인덱스 추출)
                 indices = embed_ind.flatten()
@@ -388,7 +389,7 @@ def main(args):
                       f"quant: {log['train/quant_loss']:.4f}, "
                       f"domain: {log['train/domain_loss'] + domain_loss2.item():.4f}) "
                       f"LR: {lr:.2e} \n"
-                      f"📊 Codebook: {used_codes}/{CODEBOOK_SIZE} ({codebook_usage_rate:.1f}%) Top5:[{top_indices_str}]")
+                      f"📊 Codebook: {used_codes}/{CODEBOOK_SIZE} ({codebook_usage_rate:.1f}%) Top5:[{top_indices_str}]\n")
 
                 if args.wandb_log:
                     wandb.log({
@@ -424,6 +425,7 @@ def main(args):
         val_quant_losses = []
         val_codebook_usage = torch.zeros(CODEBOOK_SIZE, dtype=torch.long, device=device)  # validation용 코드북 추적
         
+        model.eval()  # 반드시 eval() 모드로 전환 (Dropout, BatchNorm 고정)
         with torch.no_grad():
             for val_batch in data_loader_val:
                 X, Y_freq, Y_raw, input_chans, input_time, input_mask = val_batch
@@ -461,7 +463,15 @@ def main(args):
         top_indices = top_codes.indices.cpu().tolist()
         top_counts = top_codes.values.cpu().tolist()
         
-        model.train()
+        # 분포 분석: 사용된 코드들의 편차 계산
+        used_code_counts = val_codebook_usage[val_codebook_usage > 0]
+        if len(used_code_counts) > 0:
+            codebook_entropy = -((used_code_counts.float() / used_code_counts.sum()) * 
+                                torch.log(used_code_counts.float() / used_code_counts.sum() + 1e-10)).sum()
+        else:
+            codebook_entropy = 0.0
+        
+        model.train()  # Training 재개
 
         if master_process:
             print(f"\n{'='*80}")
@@ -471,6 +481,7 @@ def main(args):
             print(f"  Raw Loss:   {val_raw_loss:.4f}")
             print(f"  Quant Loss: {val_quant_loss:.4f}")
             print(f"  📊 Codebook Usage: {val_used_codes}/{CODEBOOK_SIZE} ({val_usage_rate:.1f}%)")
+            print(f"  📊 Codebook Entropy: {codebook_entropy:.4f} (높을수록 균형잡힘, Low=편향됨)")
             print(f"  Top 5 most used codes:")
             for i, (idx, count) in enumerate(zip(top_indices, top_counts)):
                 print(f"    {i+1}. Code {idx}: {count} times")

@@ -1,6 +1,6 @@
 """
-by Wei-Bang Jiang
-https://github.com/935963004/NeuroLM
+by Yonghyeon Park
+https://github.com/yongbak/NeuroLM
 """
 
 import torch
