@@ -338,9 +338,9 @@ def main(args):
                     # Feature 표준편차 (다양성 지표)
                     feature_std = enc_flat.std(dim=0).mean().item()
                     
-                    print(f"\n🔬 Encoder Diversity (iter {iter_num}):")
+                    print(f"🔬 Encoder Diversity (iter {iter_num}):")
                     print(f"  Avg similarity: {avg_sim:.4f} (1.0=identical, 0.0=orthogonal)")
-                    print(f"  Feature std: {feature_std:.4f} (0.0=collapsed)")
+                    print(f"  Feature std: {feature_std:.4f} (0.0=collapsed)\n")
                 
                 # 사용된 인덱스 카운트 (flatten해서 모든 토큰 인덱스 추출)
                 indices = embed_ind.flatten()
