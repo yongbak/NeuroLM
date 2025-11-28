@@ -419,6 +419,9 @@ def main(args):
         # === validation loop ===
         model.eval()
         val_losses = []
+        val_freq_losses = []
+        val_raw_losses = []
+        val_quant_losses = []
         val_codebook_usage = torch.zeros(CODEBOOK_SIZE, dtype=torch.long, device=device)  # validation용 코드북 추적
         
         with torch.no_grad():
@@ -433,6 +436,9 @@ def main(args):
                 alpha = 0.0  # validation에서는 domain loss 영향 없음
                 loss, domain_loss, log = model(X, Y_freq, Y_raw, input_chans, input_time, input_mask, alpha)
                 val_losses.append(log['val/total_loss'])
+                val_freq_losses.append(log['val/rec_freq_loss'])
+                val_raw_losses.append(log['val/rec_raw_loss'])
+                val_quant_losses.append(log['val/quant_loss'])
                 
                 # Validation 코드북 사용률 추적
                 mask = input_mask.unsqueeze(1).repeat(1, X.size(1), 1).unsqueeze(1)
@@ -442,6 +448,9 @@ def main(args):
                     val_codebook_usage[idx] += 1
                     
         val_total_loss = float(torch.tensor(val_losses).mean().item())
+        val_freq_loss = float(torch.tensor(val_freq_losses).mean().item())
+        val_raw_loss = float(torch.tensor(val_raw_losses).mean().item())
+        val_quant_loss = float(torch.tensor(val_quant_losses).mean().item())
         
         # Validation 코드북 사용률 계산
         val_used_codes = (val_codebook_usage > 0).sum().item()
@@ -458,6 +467,9 @@ def main(args):
             print(f"\n{'='*80}")
             print(f"[Epoch {epoch + 1}] Validation Results:")
             print(f"  Total Loss: {val_total_loss:.4f}")
+            print(f"  Freq Loss:  {val_freq_loss:.4f}")
+            print(f"  Raw Loss:   {val_raw_loss:.4f}")
+            print(f"  Quant Loss: {val_quant_loss:.4f}")
             print(f"  📊 Codebook Usage: {val_used_codes}/{CODEBOOK_SIZE} ({val_usage_rate:.1f}%)")
             print(f"  Top 5 most used codes:")
             for i, (idx, count) in enumerate(zip(top_indices, top_counts)):
@@ -468,6 +480,9 @@ def main(args):
                 wandb.log({
                     "epoch": epoch + 1, 
                     "val/total_loss": val_total_loss,
+                    "val/freq_loss": val_freq_loss,
+                    "val/raw_loss": val_raw_loss,
+                    "val/quant_loss": val_quant_loss,
                     "val/codebook_used": val_used_codes,
                     "val/codebook_usage_rate": val_usage_rate
                 })
