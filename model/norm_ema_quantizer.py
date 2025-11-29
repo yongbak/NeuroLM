@@ -164,16 +164,29 @@ class NormEMAVectorQuantizer(nn.Module):
         if len(dead_codes) == 0:
             return
         
-        # 현재 배치에서 가장 많이 사용된 코드의 샘플들 찾기
+        # 현재 배치에서 많이 사용된 Top 10 코드들에서 샘플링 (다양성 증가)
         bins = torch.bincount(encoding_indices, minlength=self.num_tokens)
-        most_used_code = bins.argmax()
+        top_k = min(10, (bins > 0).sum().item())  # 실제 사용된 코드 수와 10 중 작은 값
         
-        # 가장 많이 사용된 코드에 할당된 샘플들의 인덱스
-        active_samples_mask = (encoding_indices == most_used_code)
-        active_samples = z_flattened[active_samples_mask]
-        
-        if len(active_samples) == 0:
+        if top_k == 0:
             return
+        
+        # Top K 코드들 선택
+        top_codes = torch.topk(bins, k=top_k).indices
+        
+        # Top K 코드들에 할당된 모든 샘플들 수집
+        active_samples_list = []
+        for code_idx in top_codes:
+            mask = (encoding_indices == code_idx)
+            samples = z_flattened[mask]
+            if len(samples) > 0:
+                active_samples_list.append(samples)
+        
+        if len(active_samples_list) == 0:
+            return
+        
+        # 모든 active 샘플들 합치기
+        active_samples = torch.cat(active_samples_list, dim=0)
         
         # Dead code들을 랜덤 샘플로 재초기화
         n_dead = len(dead_codes)
@@ -186,7 +199,8 @@ class NormEMAVectorQuantizer(nn.Module):
             indices = torch.randint(0, n_samples, (n_dead,), device=z_flattened.device)
         
         reset_samples = active_samples[indices]
-        reset_samples = l2norm(reset_samples)  # Normalize
+        noise = torch.randn_like(reset_samples) * 0.1   # Noise 추가
+        reset_samples = l2norm(reset_samples + noise)   # Noise 추가 후 normalize
         
         # Dead code들의 임베딩을 업데이트
         with torch.no_grad():
@@ -228,6 +242,10 @@ class NormEMAVectorQuantizer(nn.Module):
             self.all_reduce_fn(bins)
 
             # self.embedding.cluster_size_ema_update(bins)
+            # cluster_size = 0.9 * old_cluster_size + 0.1 * bins
+            
+            # def ema_inplace(moving_avg, new, decay):
+            #     moving_avg.data.mul_(decay).add_(new, alpha = (1 - decay))
             ema_inplace(self.cluster_size, bins, self.decay)
 
             zero_mask = (bins == 0)
