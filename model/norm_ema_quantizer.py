@@ -158,8 +158,14 @@ class NormEMAVectorQuantizer(nn.Module):
         if not self.training or self.dead_code_threshold <= 0:
             return
         
-        # Dead code 찾기 (cluster_size가 임계값 이하인 코드)
-        dead_codes = (self.cluster_size < self.dead_code_threshold).nonzero(as_tuple=True)[0]
+        # Total token 개수 계산
+        total_tokens = self.cluster_size.sum()
+        
+        # 비율 기반 threshold 계산 (dead_code_threshold는 0~1 사이 값)
+        adaptive_threshold = total_tokens * self.dead_code_threshold
+        
+        # Dead code 찾기 (cluster_size가 adaptive threshold 이하인 코드)
+        dead_codes = (self.cluster_size < adaptive_threshold).nonzero(as_tuple=True)[0]
         
         if len(dead_codes) == 0:
             return
@@ -261,9 +267,6 @@ class NormEMAVectorQuantizer(nn.Module):
                                            embed_normalized)
 
             norm_ema_inplace(self.embedding.weight, embed_normalized, self.decay)
-            
-            # Dead code reset 적용
-            self.reset_dead_codes(z_flattened, encoding_indices)
 
         # compute loss for embedding
         loss = self.beta * F.mse_loss(z_q.detach(), z) 

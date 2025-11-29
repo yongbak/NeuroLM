@@ -6,4 +6,4 @@ python train_vq.py \
 --warmup_epochs 10 \
 --learning_rate 3e-5 \
 --grad_clip 0.5 \
---dead_code_threshold 1.0
+--dead_code_threshold 0.01 \
