@@ -372,11 +372,11 @@ def main(args):
                 used_codes = (codebook_usage_tracker > 0).sum().item()
                 codebook_usage_rate = used_codes / CODEBOOK_SIZE * 100
                 
-                # Top 10 가장 많이 사용된 코드
-                top_k = min(10, used_codes) if used_codes > 0 else 0
+                # Top 15 가장 많이 사용된 코드
+                top_k = min(15, used_codes) if used_codes > 0 else 0
                 if top_k > 0:
                     top_codes = torch.topk(codebook_usage_tracker, k=top_k)
-                    top_indices_str = ','.join([str(idx.item()) for idx in top_codes.indices[:5]])
+                    top_indices_str = ','.join([str(idx.item()) for idx in top_codes.indices[:top_k]])
                 else:
                     top_indices_str = "None"
                 
@@ -458,10 +458,28 @@ def main(args):
         val_used_codes = (val_codebook_usage > 0).sum().item()
         val_usage_rate = val_used_codes / CODEBOOK_SIZE * 100
         
-        # 가장 많이 사용된 코드 Top 5
-        top_codes = torch.topk(val_codebook_usage, k=min(5, val_used_codes))
+        # 가장 많이 사용된 코드 Top 10
+        top_codes = torch.topk(val_codebook_usage, k=min(10, val_used_codes))
         top_indices = top_codes.indices.cpu().tolist()
         top_counts = top_codes.values.cpu().tolist()
+        
+        # 총 토큰 수
+        total_tokens = val_codebook_usage.sum().item()
+        
+        # Top 10 비율
+        top10_sum = sum(top_counts)
+        top10_ratio = top10_sum / total_tokens * 100 if total_tokens > 0 else 0
+        
+        # 하위 5개 (사용된 코드 중에서)
+        used_codes_mask = val_codebook_usage > 0
+        used_codes_indices = torch.nonzero(used_codes_mask).squeeze(-1)
+        if len(used_codes_indices) >= 5:
+            bottom_codes = torch.topk(val_codebook_usage[used_codes_mask], k=min(5, len(used_codes_indices)), largest=False)
+            bottom_indices = used_codes_indices[bottom_codes.indices].cpu().tolist()
+            bottom_counts = bottom_codes.values.cpu().tolist()
+        else:
+            bottom_indices = []
+            bottom_counts = []
         
         # 분포 분석: 사용된 코드들의 편차 계산
         used_code_counts = val_codebook_usage[val_codebook_usage > 0]
@@ -482,9 +500,18 @@ def main(args):
             print(f"  Quant Loss: {val_quant_loss:.4f}")
             print(f"  📊 Codebook Usage: {val_used_codes}/{CODEBOOK_SIZE} ({val_usage_rate:.1f}%)")
             print(f"  📊 Codebook Entropy: {codebook_entropy:.4f} (높을수록 균형잡힘, Low=편향됨)")
-            print(f"  Top 5 most used codes:")
+            print(f"  📊 Total Tokens: {int(total_tokens)}")
+            print(f"  📊 Top 10 usage: {int(top10_sum)} ({top10_ratio:.1f}%)")
+            print(f"  Top 10 most used codes:")
             for i, (idx, count) in enumerate(zip(top_indices, top_counts)):
-                print(f"    {i+1}. Code {idx}: {count} times")
+                ratio = count / total_tokens * 100 if total_tokens > 0 else 0
+                print(f"    {i+1}. Code {idx}: {int(count)} times ({ratio:.2f}%)")
+            
+            if len(bottom_indices) > 0:
+                print(f"  Bottom 5 least used codes (among used):")
+                for i, (idx, count) in enumerate(zip(bottom_indices, bottom_counts)):
+                    ratio = count / total_tokens * 100 if total_tokens > 0 else 0
+                    print(f"    {i+1}. Code {idx}: {int(count)} times ({ratio:.2f}%)")
             print(f"{'='*80}\n")
             
             if args.wandb_log:
