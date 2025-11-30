@@ -489,32 +489,6 @@ def main(args):
         else:
             codebook_entropy = 0.0
         
-        # 🔥 Dead Code Reset (Validation 기반, 비율 기반)
-        if args.dead_code_threshold > 0 and total_tokens > 0:
-            # 비율 기반 threshold 계산
-            adaptive_threshold = total_tokens * args.dead_code_threshold
-            dead_codes = (val_codebook_usage < adaptive_threshold).nonzero(as_tuple=True)[0]
-            
-            if len(dead_codes) > 0:
-                # 마지막 validation 배치의 z 사용 (간단한 구현)
-                # 실제로는 validation 전체에서 샘플링하는게 이상적
-                with torch.no_grad():
-                    # Top 10 코드에서 샘플링
-                    top_k = min(10, (val_codebook_usage > 0).sum().item())
-                    if top_k > 0:
-                        top_codes_indices = torch.topk(val_codebook_usage, k=top_k).indices
-                        
-                        # Reset samples 생성 (랜덤 초기화)
-                        n_dead = len(dead_codes)
-                        reset_samples = torch.randn(n_dead, 128, device=device)
-                        reset_samples = torch.nn.functional.normalize(reset_samples, p=2, dim=-1)
-                        
-                        # 코드북 업데이트
-                        raw_model.VQ.embedding.weight.data[dead_codes] = reset_samples
-                        
-                        if master_process:
-                            print(f"\n🔄 Dead Code Reset: {len(dead_codes)} codes reset (threshold={adaptive_threshold:.1f}, {args.dead_code_threshold*100:.3f}%)")
-        
         model.train()  # Training 재개
 
         if master_process:
