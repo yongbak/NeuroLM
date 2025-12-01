@@ -278,21 +278,32 @@ class VQ_Align(nn.Module):
             nn.init.constant_(m.weight, 1.0)
     
     def forward(self, x, y_freq=None, y_raw=None, input_chans=None, input_time=None, input_mask=None, alpha=0):
+        use_domain_loss = False
+
         if y_freq is not None:
             loss, encoder_features, log = self.VQ(x, y_freq, y_raw, input_chans, input_time, input_mask)
-            reverse_x = ReverseLayerF.apply(encoder_features, alpha)
-            domain_out = self.domain_classifier(reverse_x)
-            target = torch.full((domain_out.size(0), domain_out.size(1)), fill_value=-1, device=x.device)
-            target[input_mask == True] = 0
-            domain_loss = F.cross_entropy(domain_out.view(-1, domain_out.size(-1)), target.view(-1), ignore_index=-1)
+
+            if use_domain_loss:
+                reverse_x = ReverseLayerF.apply(encoder_features, alpha)
+                domain_out = self.domain_classifier(reverse_x)
+                target = torch.full((domain_out.size(0), domain_out.size(1)), fill_value=-1, device=x.device)
+                target[input_mask == True] = 0
+                domain_loss = F.cross_entropy(domain_out.view(-1, domain_out.size(-1)), target.view(-1), ignore_index=-1)
+            else:
+                domain_loss = torch.tensor(0.0, device=x.device)
+
             split="train" if self.training else "val"
             log[f'{split}/domain_loss'] = domain_loss.detach().item()
             return loss, domain_loss, log
+        
         else:
-            x = self.wte(x).detach()
-            domain_out = self.domain_classifier(x)
-            domain_loss = F.cross_entropy(domain_out.view(-1, domain_out.size(-1)), torch.ones((x.size(0) * x.size(1),), device=x.device).long(), ignore_index=-1)
-            return domain_loss
+            if use_domain_loss:
+                x = self.wte(x).detach()
+                domain_out = self.domain_classifier(x)
+                domain_loss = F.cross_entropy(domain_out.view(-1, domain_out.size(-1)), torch.ones((x.size(0) * x.size(1),), device=x.device).long(), ignore_index=-1)
+                return domain_loss
+            else:
+                return torch.tensor(0.0, device=x.device)
         
     def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
         # start with all of the candidate parameters
