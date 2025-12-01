@@ -20,7 +20,7 @@ from constants import (
     AMPLITUDE_SCALING_MAX
 )
 
-AUGMENT_FACTOR = 1      # > 0
+AUGMENT_FACTOR = 3      # > 0
 
 drop_channels = None
 chOrder_standard = ['DEVICE']

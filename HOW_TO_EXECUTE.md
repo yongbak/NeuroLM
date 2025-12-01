@@ -1,3 +1,20 @@
+# Hyperparameters
+1. Deadcode reset noise rate
+In norm_ema_quantizer.py:
+noise = torch.randn_like(reset_samples) * 0.05
+
+2. Deadcode threshold
+In train.sh:
+--dead_code_threshold 10.0
+--decay 0.9
+--
+
+3. time embedding weight
+In model_neural_transforemr.py:
+x = x + 0.05 * time_embed
+
+
+
 It needs processed .pkl and .bin.
 
 1. Generate .pkl files from .txt datasets

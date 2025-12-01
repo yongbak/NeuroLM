@@ -1,8 +1,10 @@
+# batch/accumulation 늘리기, LR낮추고 warmup 늘리기
+
 ## Hyperparameters for training
 NUM_WORKERS = 2  # ~10
-DEFAULT_ACCUMULATION_STEPS = 1      # 1~
-DEFAULT_BATCH_SIZE = 4             # ~16
-DEFAULT_TEXT_BATCH_SIZE = 4         # ~64
+DEFAULT_ACCUMULATION_STEPS = 8      # 1~
+DEFAULT_BATCH_SIZE = 8             # ~16
+DEFAULT_TEXT_BATCH_SIZE = 8         # ~64
 DEFAULT_DTYPE = 'float16'           #'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float16' # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
 
 NUM_OF_TOTAL_SAMPLES = 40000             # 1개 피클파일을 4만 샘플로 만듦
@@ -38,11 +40,12 @@ Feature std:
 
 
 '''
-DEBUG_ENCODER = True    
+DEBUG_ENCODER = True
+DEBUG_DEADCODE_RESET = False
 
 ## Data Augmentation Parameters
 GAUSSIAN_NOISE_MEAN = 0.0
-GAUSSIAN_NOISE_STD = 0.05
-AMPLITUDE_SCALING_MIN = 0.95
-AMPLITUDE_SCALING_MAX = 1.05
+GAUSSIAN_NOISE_STD = 0.1
+AMPLITUDE_SCALING_MIN = 0.9
+AMPLITUDE_SCALING_MAX = 1.1
 

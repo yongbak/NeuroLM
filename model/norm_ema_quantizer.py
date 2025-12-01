@@ -199,7 +199,7 @@ class NormEMAVectorQuantizer(nn.Module):
             indices = torch.randint(0, n_samples, (n_dead,), device=z_flattened.device)
         
         reset_samples = active_samples[indices]
-        noise = torch.randn_like(reset_samples) * 0.1   # Noise 추가
+        noise = torch.randn_like(reset_samples) * 0.05   # Noise 추가
         reset_samples = l2norm(reset_samples + noise)   # Noise 추가 후 normalize
         
         # Dead code들의 임베딩을 업데이트
