@@ -10,7 +10,12 @@ import os
 from downstream_dataset import TUABLoader, TUEVLoader, TUSLLoader, HMCLoader, WorkloadLoader
 from metrics import binary_metrics_fn, multiclass_metrics_fn
 
-from constants import CODEBOOK_SIZE
+from constants import (
+    CODEBOOK_SIZE,
+    NUM_OF_TOTAL_SAMPLES,
+    NUM_OF_SAMPLES_PER_TOKEN,
+    NUM_OF_TOTAL_TOKENS
+)
 
 def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epochs=0,
                      start_warmup_value=0, warmup_steps=-1):
@@ -156,8 +161,9 @@ def txt_to_full_pickle(txt_file_path, output_pkl_path=None, sampling_rate=2000.0
         
     return sample
 
-def extract_tokens_from_single_file(model, file_path, chunk_size=40, sequence_unit=200, device='cuda' if torch.cuda.is_available() else 'cpu'):
-    """Extract tokens from a txt signal file by chunking into 40-token segments"""
+# chunk_size는 모델이 한번에 추출할 토큰의 개수, constants.py의 NUM_OF_TOTAL_TOKENS
+def extract_tokens_from_single_file(model, file_path, chunk_size=200, sequence_unit=200, device='cuda' if torch.cuda.is_available() else 'cpu'):
+    """Extract tokens from a txt signal file by chunking into 200-token segments"""
     print(f"🔄 Processing: {file_path}")
     
     # Load data
@@ -181,22 +187,8 @@ def extract_tokens_from_single_file(model, file_path, chunk_size=40, sequence_un
     n_channels = len(ch_names)
     total_tokens = data.size(0)
     
-    # Calculate number of chunks (40 tokens each)
+    # Calculate number of chunks (200 tokens each)
     num_chunks = (total_tokens + chunk_size - 1) // chunk_size
-    # print(f"📦 Splitting into {num_chunks} chunks of {chunk_size} tokens each")
-    
-    # Create proper input_chans like in dataset.py
-    from dataset import standard_1020
-    
-    def get_chans(ch_names_list):
-        chans = []
-        for ch_name in ch_names_list:
-            try:
-                chans.append(standard_1020.index(ch_name))
-            except ValueError:
-                # If channel not found, use 'pad' token
-                chans.append(standard_1020.index('pad'))
-        return chans
     
     # Process each chunk
     all_tokens = []
@@ -301,6 +293,14 @@ def extract_tokens_from_single_file(model, file_path, chunk_size=40, sequence_un
         'file_path': file_path
     }
 
+def token_list_to_text(token_list, identifier="TOK"):
+    """Convert list of token indices to text format for saving"""
+    return ' '.join([f"<{identifier}{tok}>" for tok in token_list])
+
+def get_token_string(model, signal, identifier="TOK", device='cuda' if torch.cuda.is_available() else 'cpu'):
+    tokens, _ = extract_tokens_from_single_file(model, signal, chunk_size=NUM_OF_TOTAL_TOKENS, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN, device=device)
+    tokens_string = token_list_to_text(tokens, identifier)
+    return tokens_string
 
 def main():
     parser = argparse.ArgumentParser('Simple token extraction')
