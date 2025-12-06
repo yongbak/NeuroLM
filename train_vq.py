@@ -14,6 +14,7 @@ from constants import (
     NUM_OF_TOTAL_TOKENS,
     SAMPLING_RATE,
     VAE_AUGMENT_FACTOR,
+    EMBEDDING_DIMENSION,
     CODEBOOK_SIZE,
     DECAY,
     BETA,
@@ -170,7 +171,7 @@ def main(args):
                     bias=False, dropout=0., num_classes=0, in_chans=1, out_chans=16)
     decoder_args = dict(n_layer=4, n_head=12, n_embd=768,
                     block_size=NUM_OF_TOTAL_TOKENS, patch_size=NUM_OF_SAMPLES_PER_TOKEN, sample_size=NUM_OF_TOTAL_SAMPLES,
-                    bias=False, dropout=0., num_classes=0, in_chans=128)
+                    bias=False, dropout=0., num_classes=0, in_chans=EMBEDDING_DIMENSION)
 
     if os.path.exists(os.path.join(checkpoint_out_dir, 'ckpt.pt')):
         init_from = 'resume'
@@ -186,7 +187,7 @@ def main(args):
         model = VQ_Align(encoder_conf, decoder_conf,
                          # Patch size, 1개 토큰이 커버하는 샘플 개수는 encoder_conf에 존재
                          n_embed=CODEBOOK_SIZE,
-                         embed_dim=128,
+                         embed_dim=EMBEDDING_DIMENSION,
                          decay=DECAY,  # Lowered from 0.95 to reduce past bias and prevent collapse
                          beta=BETA,    # Increased commitment loss to prevent collapse
                          offline=OFFLINE,
@@ -210,7 +211,7 @@ def main(args):
         decoder_conf = NTConfig(**decoder_args)
         model = VQ_Align(encoder_conf, decoder_conf,
                          n_embed=CODEBOOK_SIZE,
-                         embed_dim=128,
+                         embed_dim=EMBEDDING_DIMENSION,
                          decay=DECAY,  # Lowered from 0.95 to reduce past bias and prevent collapse
                          beta=BETA,    # Increased commitment loss to prevent collapse
                          offline=OFFLINE,
