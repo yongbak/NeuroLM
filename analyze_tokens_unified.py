@@ -33,33 +33,40 @@ def get_output_dir(version):
     return "./token_analysis"
 
 def get_label_from_filename(filename):
-    """Extract label from filename: 'b' = normal, others = abnormal"""
-    parts = filename.split('_')
-    if len(parts) > 1:
-        label_char = parts[1]
-        return 'normal' if label_char == 'b' else 'abnormal'
-    return 'unknown'
+    """Extract raw label character from filename (b/cc/m/s)"""
+    parts = filename.split('-')
+    if len(parts) > 1:      # is_augmented == True
+        name = parts[1]
+    else:
+        name = parts[0]
+    return name.split('_')[1]
+
 
 def process_all_files(model, data_dir, device='cuda'):
-    """Process all CSV files and extract tokens with labels"""
+    """Process all files and extract tokens with labels"""
     csv_files = list(Path(data_dir).glob('*.csv'))
-    
+    pkl_files = list(Path(data_dir).glob('*.pkl'))
+    files = csv_files + pkl_files
+
     print(f"🔍 Found {len(csv_files)} CSV files")
-    
+    print(f"🔍 Found {len(pkl_files)} PKL files")
+
     tokens_by_label = defaultdict(list)
     file_info = []
     
-    for i, csv_file in enumerate(csv_files):
-        filename = csv_file.name
-        label = get_label_from_filename(filename)
-        
-        print(f"[{i+1}/{len(csv_files)}] {filename} ({label})", end=' ')
-        
+    for i, file in enumerate(files):
+        filename = file.name
+        raw_label = get_label_from_filename(filename)
+        # Convert raw label to normal/abnormal
+        label = 'normal' if raw_label == 'b' else 'abnormal'
+
+        print(f"[{i+1}/{len(files)}] {filename} ({raw_label} -> {label})", end=' ')
+
         try:
             token_sequence, metadata = extract_tokens_from_single_file(
                 model, 
-                str(csv_file), 
-                file_type="csv", 
+                str(file), 
+                use_pkl=False if file.suffix == '.csv' else True, 
                 sequence_unit=NUM_OF_SAMPLES_PER_TOKEN, 
                 chunk_size=NUM_OF_TOTAL_TOKENS,
                 device=device
@@ -357,7 +364,7 @@ def main():
         print(f"❌ Error loading model: {e}")
         return
     
-    print(f"\n📂 Processing CSV files...")
+    print(f"\n📂 Processing {'PKL' if USE_PKL else 'CSV'} files...")
     tokens_by_label, file_info = process_all_files(model, data_dir, device=device)
     
     print(f"\n📊 Analyzing token distribution...")
