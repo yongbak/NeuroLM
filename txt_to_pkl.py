@@ -160,7 +160,7 @@ def load_up_augmented_objects(fileList, Features, Labels, OutDir, augment_factor
 
                 # Random prefix to prevent alphabetical clustering
                 random_prefix = f"{random.randint(0, 999999):06d}"
-                basename = fname.split("/")[-1].split(".")[0]
+                basename = os.path.basename(fname).split(".")[0]
                 filename = f"{random_prefix}_gaussian_noise_{f}_{basename}-{idx}.pkl"
                 
                 print(os.path.join(OutDir, filename))
@@ -187,9 +187,8 @@ def load_up_augmented_objects(fileList, Features, Labels, OutDir, augment_factor
 
                 # Random prefix to prevent alphabetical clustering
                 random_prefix = f"{random.randint(0, 999999):06d}"
-                basename = fname.split("/")[-1].split(".")[0]
-                filename = f"{random_prefix}_amplitude_manipulated_{f}_{basename}-{idx}.pkl"
-                
+                basename = os.path.basename(fname).split(".")[0]
+                filename = f"{random_prefix}_amplitude_manipulated_{f}-{basename}-{idx}.pkl"
                 print(os.path.join(OutDir, filename))
 
                 save_pickle(
@@ -232,9 +231,8 @@ def load_up_objects(fileList, Features, Labels, OutDir):
 
             # Random prefix to prevent alphabetical clustering
             random_prefix = f"{random.randint(0, 999999):06d}"
-            basename = fname.split("/")[-1].split(".")[0]
-            filename = f"{random_prefix}_original_{basename}-{idx}.pkl"
-            
+            basename = os.path.basename(fname).split(".")[0]
+            filename = f"{random_prefix}_original-{basename}-{idx}.pkl"
             print(os.path.join(OutDir, filename))
 
             save_pickle(

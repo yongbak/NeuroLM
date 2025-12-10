@@ -162,18 +162,17 @@ def txt_to_full_pickle(txt_file_path, output_pkl_path=None, sampling_rate=2000.0
     return sample
 
 # chunk_size는 모델이 한번에 추출할 토큰의 개수, constants.py의 NUM_OF_TOTAL_TOKENS
-def extract_tokens_from_single_file(model, file_path, chunk_size=200, sequence_unit=200, file_type='pkl', device='cuda' if torch.cuda.is_available() else 'cpu'):
+def extract_tokens_from_single_file(model, file_path, chunk_size=200, sequence_unit=200, use_pkl=True, device='cuda' if torch.cuda.is_available() else 'cpu'):
     """Extract tokens from a txt signal file by chunking into 200-token segments"""
     print(f"🔄 Processing: {file_path}")
     
     # Load data
-    if file_type == "pkl":
+    if use_pkl:
         with open(file_path, 'rb') as f:
             sample = pickle.load(f)
-    elif file_type == "csv":
+    elif not use_pkl:
+        # only support CSV
         sample = txt_to_full_pickle(file_path, output_pkl_path=None)
-    else:
-        raise ValueError(f"Unsupported file_type: {file_type}")
     
     data = sample["X"]  # Shape: (channels, time_samples)
     ch_names = sample["ch_names"]
@@ -303,8 +302,8 @@ def token_list_to_text(token_list, identifier="TOK"):
     """Convert list of token indices to text format for saving"""
     return ' '.join([f"<{identifier}{tok}>" for tok in token_list])
 
-def get_token_string(model, signal, identifier="TOK", file_type="pkl", device='cuda' if torch.cuda.is_available() else 'cpu'):
-    tokens, _ = extract_tokens_from_single_file(model, signal, chunk_size=NUM_OF_TOTAL_TOKENS, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN, file_type=file_type, device=device)
+def get_token_string(model, signal, identifier="TOK", use_pkl=True, device='cuda' if torch.cuda.is_available() else 'cpu'):
+    tokens, _ = extract_tokens_from_single_file(model, signal, chunk_size=NUM_OF_TOTAL_TOKENS, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN, use_pkl=use_pkl, device=device)
     tokens_string = token_list_to_text(tokens, identifier)
     return tokens_string
 
