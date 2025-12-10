@@ -18,7 +18,12 @@ from constants import NUM_OF_SAMPLES_PER_TOKEN, NUM_OF_TOTAL_TOKENS
 # 🔧 설정: 이 값을 바꿔서 다른 체크포인트를 분석하세요
 # 옵션: 9, 19, 29, 39, 49, "best"
 CHECKPOINT_VERSION = 29  # ← 이 값을 바꾸세요!
-# 모든 결과는 ./token_analysis 디렉토리에 저장됩니다
+
+# 옵션: train, test, val
+TYPE = "test"
+
+ONLY_ORIGINAL = False
+# 모든 결과는 ./token_analysis/{type} 디렉토리에 저장됩니다
 # ============================================================================
 
 def get_checkpoint_path(version):
@@ -28,9 +33,9 @@ def get_checkpoint_path(version):
     else:
         return f"./vq_output/checkpoints/VQ/ckpt-{version}.pt"
 
-def get_output_dir(version):
+def get_output_dir(memo):
     """Get output directory from version - all in ./token_analysis"""
-    return "./token_analysis"
+    return "./logs/token_analysis_"+memo
 
 def get_label_from_filename(filename):
     """Extract raw label character from filename (b/cc/m/s)"""
@@ -340,9 +345,13 @@ def main():
     print("="*80)
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    data_dir = './datasets/PMD_samples'
+    if ONLY_ORIGINAL:
+        data_dir = f'./datasets/PMD_samples'
+    else:
+        data_dir = f'./datasets/processed/PMD_samples/{TYPE}'
+    
     checkpoint_path = get_checkpoint_path(CHECKPOINT_VERSION)
-    output_dir = get_output_dir(CHECKPOINT_VERSION)
+    output_dir = get_output_dir(f"{CHECKPOINT_VERSION}_{TYPE}")
     
     print(f"\n📌 Configuration:")
     print(f"   - Device: {device}")
@@ -364,7 +373,7 @@ def main():
         print(f"❌ Error loading model: {e}")
         return
     
-    print(f"\n📂 Processing {'PKL' if USE_PKL else 'CSV'} files...")
+    print(f"\n📂 Processing all 'PKL' and 'CSV' files...")
     tokens_by_label, file_info = process_all_files(model, data_dir, device=device)
     
     print(f"\n📊 Analyzing token distribution...")
