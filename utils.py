@@ -361,7 +361,9 @@ def main():
 
 if __name__ == "__main__":
     # Example usage
-    txt_signal_file = "/home/yongbak/research/NeuroLM/datasets/PMD_samples/s0_b_2024_07.csv"
+    txt_signal_file = "/home/yongbak/research/NeuroLM/datasets/PMD_samples/s5_s_2024_07.csv"
+    pkl_signal_file = "/home/yongbak/research/NeuroLM/datasets/processed/PMD_samples/train/998399_original-s5_s_2024_07-0.pkl"
+    pkl_signal_file = "/home/yongbak/research/NeuroLM/datasets/processed/PMD_samples/train/998024_gaussian_noise_2-s3_b_2024_03-2.pkl"
     output_pkl = "/home/yongbak/research/NeuroLM/datasets/processed/tmp/s0_b_2024_07.pkl"
     #txt_to_full_pickle(txt_file, output_pkl)
 
@@ -371,7 +373,8 @@ if __name__ == "__main__":
 
     from constants import NUM_OF_SAMPLES_PER_TOKEN, NUM_OF_TOTAL_TOKENS
 
-    token_sequence, _ = extract_tokens_from_single_file(model, txt_signal_file, file_type="csv", sequence_unit=NUM_OF_SAMPLES_PER_TOKEN, chunk_size=NUM_OF_TOTAL_TOKENS, device='cuda' if torch.cuda.is_available() else 'cpu')
+    token_sequence, _ = extract_tokens_from_single_file(model, txt_signal_file, use_pkl=False, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN, chunk_size=NUM_OF_TOTAL_TOKENS, device='cuda' if torch.cuda.is_available() else 'cpu')
+    #token_sequence, _ = extract_tokens_from_single_file(model, pkl_signal_file, use_pkl=True, sequence_unit=NUM_OF_SAMPLES_PER_TOKEN, chunk_size=NUM_OF_TOTAL_TOKENS, device='cuda' if torch.cuda.is_available() else 'cpu')
     print(type(token_sequence))
     print(len(token_sequence))
     print(token_sequence)
