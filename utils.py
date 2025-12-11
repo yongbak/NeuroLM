@@ -67,12 +67,12 @@ from pathlib import Path
 from model.model_vq import VQ_Align
 from model.model_neural_transformer import NTConfig
 
-def load_vq_model(checkpoint_path, device='cuda', offline=True):
+def load_vq_model(checkpoint_path, device='cuda', weights_only=False, offline=True):
     """Load trained VQ model from checkpoint"""
     print(f"Loading VQ model from {checkpoint_path}")
     
     # weights_only=False to load full checkpoint, or True
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=weights_only)
     
     # Get model configuration from checkpoint
     encoder_args = checkpoint['encoder_args']
