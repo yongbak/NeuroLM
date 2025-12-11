@@ -22,6 +22,9 @@ CHECKPOINT_VERSION = 29  # ← 이 값을 바꾸세요!
 # 옵션: train, test, val
 TYPE = "test"
 
+# 비교할 상위 K개 토큰 (0이면 전체 토큰 비교)
+TOP_K = 30  # ← 상위 몇 개 토큰을 볼지 결정 (0 = 전체)
+
 ONLY_ORIGINAL = False
 # 모든 결과는 ./token_analysis/{type} 디렉토리에 저장됩니다
 # ============================================================================
@@ -124,9 +127,10 @@ def analyze_token_distribution(tokens_by_label):
         
         token_counts = Counter(all_tokens)
         sorted_tokens = sorted(token_counts.items(), key=lambda x: x[1], reverse=True)
-        
-        print(f"\n2️⃣  TOKEN FREQUENCY (Top 20):")
-        for rank, (token, count) in enumerate(sorted_tokens[:20], 1):
+
+        top_k_display = len(sorted_tokens) if TOP_K == 0 else min(TOP_K, len(sorted_tokens))
+        print(f"\n2️⃣  TOKEN FREQUENCY (Top {top_k_display}):")
+        for rank, (token, count) in enumerate(sorted_tokens[:top_k_display], 1):
             percentage = (count / len(all_tokens)) * 100
             print(f"   {rank:2d}. Token {token:4d}: {count:6d} times ({percentage:5.2f}%)")
         
@@ -279,9 +283,10 @@ def create_visualizations(analysis_results, version, output_dir):
     ax4.legend(fontsize=10)
     ax4.grid(axis='y', alpha=0.3)
     
-    # Panel 5: Top 20 tokens for Normal
+    # Panel 5: Top K tokens for Normal
     ax5 = fig.add_subplot(gs[2, 0])
-    sorted_tokens_normal = analysis_results['normal']['sorted_tokens'][:20]
+    top_k_display = len(analysis_results['normal']['sorted_tokens']) if TOP_K == 0 else min(TOP_K, len(analysis_results['normal']['sorted_tokens']))
+    sorted_tokens_normal = analysis_results['normal']['sorted_tokens'][:top_k_display]
     tokens_n, counts_n = zip(*sorted_tokens_normal)
     percentages_n = [(count / analysis_results['normal']['total_tokens']) * 100 for count in counts_n]
     
@@ -289,13 +294,13 @@ def create_visualizations(analysis_results, version, output_dir):
     ax5.set_yticks(range(len(tokens_n)))
     ax5.set_yticklabels([f'Token {t}' for t in tokens_n], fontsize=9)
     ax5.set_xlabel('Percentage (%)', fontsize=11)
-    ax5.set_title(f'Top 20 Tokens - Normal ({checkpoint_label})', fontsize=12, fontweight='bold')
+    ax5.set_title(f'Top {top_k_display} Tokens - Normal ({checkpoint_label})', fontsize=12, fontweight='bold')
     ax5.grid(axis='x', alpha=0.3)
     ax5.invert_yaxis()
     
-    # Panel 6: Top 20 tokens for Abnormal
+    # Panel 6: Top K tokens for Abnormal
     ax6 = fig.add_subplot(gs[2, 1])
-    sorted_tokens_abnormal = analysis_results['abnormal']['sorted_tokens'][:20]
+    sorted_tokens_abnormal = analysis_results['abnormal']['sorted_tokens'][:top_k_display]
     tokens_a, counts_a = zip(*sorted_tokens_abnormal)
     percentages_a = [(count / analysis_results['abnormal']['total_tokens']) * 100 for count in counts_a]
     
@@ -303,7 +308,7 @@ def create_visualizations(analysis_results, version, output_dir):
     ax6.set_yticks(range(len(tokens_a)))
     ax6.set_yticklabels([f'Token {t}' for t in tokens_a], fontsize=9)
     ax6.set_xlabel('Percentage (%)', fontsize=11)
-    ax6.set_title(f'Top 20 Tokens - Abnormal ({checkpoint_label})', fontsize=12, fontweight='bold')
+    ax6.set_title(f'Top {top_k_display} Tokens - Abnormal ({checkpoint_label})', fontsize=12, fontweight='bold')
     ax6.grid(axis='x', alpha=0.3)
     ax6.invert_yaxis()
     
@@ -331,11 +336,86 @@ def save_summary(analysis_results, version, output_dir):
             f.write(f"Total tokens: {analysis_results[label]['total_tokens']}\n")
             f.write(f"Unique tokens: {analysis_results[label]['unique_count']}\n")
             f.write(f"Codebook usage: {(analysis_results[label]['unique_count']/1024)*100:.2f}%\n\n")
-            
-            f.write("Top 20 tokens:\n")
-            for rank, (token, count) in enumerate(analysis_results[label]['sorted_tokens'][:20], 1):
+
+            top_k_display = len(analysis_results[label]['sorted_tokens']) if TOP_K == 0 else min(TOP_K, len(analysis_results[label]['sorted_tokens']))
+            f.write(f"Top {top_k_display} tokens:\n")
+            for rank, (token, count) in enumerate(analysis_results[label]['sorted_tokens'][:top_k_display], 1):
                 percentage = (count / analysis_results[label]['total_tokens']) * 100
                 f.write(f"  {rank:2d}. Token {token:4d}: {count:6d} ({percentage:5.2f}%)\n")
+            
+            # 전체 토큰 분포 출력
+            f.write(f"\n{'-'*80}\n")
+            f.write(f"ALL TOKENS ({analysis_results[label]['unique_count']} unique tokens):\n")
+            f.write(f"{'-'*80}\n")
+            f.write(f"{'Rank':<6} {'Token':<8} {'Count':<8} {'Percentage':<12} {'Cumulative %':<15}\n")
+            f.write(f"{'-'*80}\n")
+            
+            cumulative_percentage = 0.0
+            for rank, (token, count) in enumerate(analysis_results[label]['sorted_tokens'], 1):
+                percentage = (count / analysis_results[label]['total_tokens']) * 100
+                cumulative_percentage += percentage
+                f.write(f"{rank:<6d} {token:<8d} {count:<8d} {percentage:>10.2f}% {cumulative_percentage:>13.2f}%\n")
+        
+        # 겹치는 토큰 분석 추가
+        f.write(f"\n{'='*80}\n")
+        f.write(f"OVERLAPPING TOKENS ANALYSIS\n")
+        f.write(f"{'='*80}\n")
+        
+        if 'normal' in analysis_results and 'abnormal' in analysis_results:
+            # 각 레이블의 토큰 세트 추출
+            normal_tokens = set(token for token, _ in analysis_results['normal']['sorted_tokens'])
+            abnormal_tokens = set(token for token, _ in analysis_results['abnormal']['sorted_tokens'])
+            
+            # 겹치는 토큰
+            overlapping_tokens = normal_tokens & abnormal_tokens
+            
+            # 정상에만 있는 토큰
+            normal_only = normal_tokens - abnormal_tokens
+            
+            # 비정상에만 있는 토큰
+            abnormal_only = abnormal_tokens - normal_tokens
+            
+            f.write(f"\n📊 TOKEN SET COMPARISON:\n")
+            f.write(f"   - NORMAL unique tokens: {len(normal_tokens)}\n")
+            f.write(f"   - ABNORMAL unique tokens: {len(abnormal_tokens)}\n")
+            f.write(f"   - Overlapping tokens: {len(overlapping_tokens)}\n")
+            f.write(f"   - NORMAL only: {len(normal_only)}\n")
+            f.write(f"   - ABNORMAL only: {len(abnormal_only)}\n\n")
+            
+            # 겹치는 토큰들의 점유율 계산
+            normal_token_dict = dict(analysis_results['normal']['sorted_tokens'])
+            abnormal_token_dict = dict(analysis_results['abnormal']['sorted_tokens'])
+            
+            overlap_normal_count = sum(normal_token_dict.get(token, 0) for token in overlapping_tokens)
+            overlap_abnormal_count = sum(abnormal_token_dict.get(token, 0) for token in overlapping_tokens)
+            
+            overlap_normal_ratio = (overlap_normal_count / analysis_results['normal']['total_tokens']) * 100
+            overlap_abnormal_ratio = (overlap_abnormal_count / analysis_results['abnormal']['total_tokens']) * 100
+            
+            f.write(f"📈 OVERLAPPING TOKENS CONTRIBUTION:\n")
+            f.write(f"   NORMAL:\n")
+            f.write(f"      - Total count: {overlap_normal_count}\n")
+            f.write(f"      - Percentage: {overlap_normal_ratio:.2f}%\n\n")
+            f.write(f"   ABNORMAL:\n")
+            f.write(f"      - Total count: {overlap_abnormal_count}\n")
+            f.write(f"      - Percentage: {overlap_abnormal_ratio:.2f}%\n\n")
+            
+            # 상세 겹치는 토큰 리스트
+            f.write(f"{'Rank':<6} {'Token':<8} {'Normal Count':<14} {'Normal %':<12} {'Abnormal Count':<16} {'Abnormal %':<12}\n")
+            f.write(f"{'-'*80}\n")
+            
+            # 겹치는 토큰을 정상에서의 빈도로 정렬
+            sorted_overlapping = sorted(overlapping_tokens, 
+                                       key=lambda t: normal_token_dict.get(t, 0), 
+                                       reverse=True)
+            
+            for rank, token in enumerate(sorted_overlapping, 1):
+                normal_count = normal_token_dict.get(token, 0)
+                abnormal_count = abnormal_token_dict.get(token, 0)
+                normal_pct = (normal_count / analysis_results['normal']['total_tokens']) * 100
+                abnormal_pct = (abnormal_count / analysis_results['abnormal']['total_tokens']) * 100
+                
+                f.write(f"{rank:<6d} {token:<8d} {normal_count:<14d} {normal_pct:>10.2f}% {abnormal_count:<16d} {abnormal_pct:>10.2f}%\n")
     
     print(f"   ✅ Saved: {summary_file}")
 
