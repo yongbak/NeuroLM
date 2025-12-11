@@ -180,8 +180,8 @@ def extract_tokens_from_single_file(model, file_path, chunk_size=200, sequence_u
     # print(f"📊 Original data shape: {data.shape}, channels: {len(ch_names)}")
     # print(f"📊 Channel names: {ch_names}")
     
-    # Preprocess like in dataset.py
-    data = torch.FloatTensor(data / 100)
+    # Preprocess like in dataset.py (NO NORMALIZATION - match to training)
+    data = torch.FloatTensor(data)
     time_segments = data.size(1) // sequence_unit
     
     # Rearrange to (time_segments * channels, sequence_unit)
