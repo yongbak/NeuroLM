@@ -14,7 +14,8 @@ from constants import (
     CODEBOOK_SIZE,
     NUM_OF_TOTAL_SAMPLES,
     NUM_OF_SAMPLES_PER_TOKEN,
-    NUM_OF_TOTAL_TOKENS
+    NUM_OF_TOTAL_TOKENS,
+    EMBEDDING_DIMENSION
 )
 
 def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epochs=0,
@@ -84,7 +85,7 @@ def load_vq_model(checkpoint_path, device='cuda', weights_only=False, offline=Tr
     # Create model
     encoder_conf = NTConfig(**encoder_args)
     decoder_conf = NTConfig(**decoder_args)
-    model = VQ_Align(encoder_conf, decoder_conf, n_embed=CODEBOOK_SIZE, offline=offline)
+    model = VQ_Align(encoder_conf, decoder_conf, n_embed=CODEBOOK_SIZE, embed_dim=EMBEDDING_DIMENSION, offline=offline)
     
     # Load state dict
     state_dict = checkpoint['model']
