@@ -12,7 +12,7 @@ from collections import defaultdict, Counter
 import matplotlib.pyplot as plt
 
 from utils import load_vq_model, extract_tokens_from_single_file
-from constants import NUM_OF_SAMPLES_PER_TOKEN, NUM_OF_TOTAL_TOKENS
+from constants import NUM_OF_SAMPLES_PER_TOKEN, NUM_OF_TOTAL_TOKENS, CODEBOOK_SIZE
 
 # ============================================================================
 # 🔧 설정: 이 값을 바꿔서 다른 체크포인트를 분석하세요
@@ -34,9 +34,9 @@ ONLY_ORIGINAL = False
 def get_checkpoint_path(version):
     """Get checkpoint path from version"""
     if version == "best":
-        return "./vq_output/checkpoints/VQ/ckpt_best.pt"
+        return f"./vq_output_{ID}/checkpoints/VQ/ckpt_best.pt"
     else:
-        return f"./vq_output/checkpoints/VQ/ckpt-{version}.pt"
+        return f"./vq_output_{ID}/checkpoints/VQ/ckpt-{version}.pt"
 
 def get_output_dir(memo):
     """Get output directory from version - all in ./token_analysis"""
@@ -147,7 +147,7 @@ def analyze_token_distribution(tokens_by_label):
         print(f"   - Min frequency: {min(token_counts.values())}")
         print(f"   - Max frequency: {max(token_counts.values())}")
         
-        total_codebook = 1024
+        total_codebook = CODEBOOK_SIZE
         usage_percentage = (len(set(all_tokens)) / total_codebook) * 100
         print(f"\n4️⃣  CODEBOOK USAGE:")
         print(f"   - Used tokens: {len(set(all_tokens))}/{total_codebook} ({usage_percentage:.2f}%)")
@@ -250,14 +250,14 @@ def create_visualizations(analysis_results, version, output_dir):
     colors = ['#2ecc71', '#e74c3c']
     
     bars = ax3.bar(labels_list, unique_counts, color=colors, edgecolor='black', linewidth=2, width=0.6)
-    ax3.axhline(y=1024, color='gray', linestyle='--', linewidth=2, label='Codebook Size (1024)')
+    ax3.axhline(y=CODEBOOK_SIZE, color='gray', linestyle='--', linewidth=2, label=f'Codebook Size ({CODEBOOK_SIZE})')
     ax3.set_ylabel('Number of Unique Tokens', fontsize=11)
     ax3.set_title(f'Codebook Usage ({checkpoint_label})', fontsize=12, fontweight='bold')
-    ax3.set_ylim(0, 1100)
+    ax3.set_ylim(0, CODEBOOK_SIZE*1.1)
     
     for bar, count in zip(bars, unique_counts):
         height = bar.get_height()
-        percentage = (count / 1024) * 100
+        percentage = (count / CODEBOOK_SIZE) * 100
         ax3.text(bar.get_x() + bar.get_width()/2., height + 20,
                 f'{count}\n({percentage:.1f}%)', ha='center', va='bottom', fontsize=11, fontweight='bold')
     
@@ -433,7 +433,7 @@ def main():
         data_dir = f'./datasets/processed/PMD_samples/{TYPE}'
     
     checkpoint_path = get_checkpoint_path(CHECKPOINT_VERSION)
-    output_dir = get_output_dir(f"{CHECKPOINT_VERSION}_{TYPE}_{ID}")
+    output_dir = get_output_dir(f"{ID}_{CHECKPOINT_VERSION}_{TYPE}")
     
     print(f"\n📌 Configuration:")
     print(f"   - Device: {device}")
