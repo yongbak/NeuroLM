@@ -16,6 +16,8 @@ from constants import NUM_OF_SAMPLES_PER_TOKEN, NUM_OF_TOTAL_TOKENS
 
 # ============================================================================
 # 🔧 설정: 이 값을 바꿔서 다른 체크포인트를 분석하세요
+ID = "token_1000"
+
 # 옵션: 9, 19, 29, 39, 49, "best"
 CHECKPOINT_VERSION = 29  # ← 이 값을 바꾸세요!
 
@@ -431,7 +433,7 @@ def main():
         data_dir = f'./datasets/processed/PMD_samples/{TYPE}'
     
     checkpoint_path = get_checkpoint_path(CHECKPOINT_VERSION)
-    output_dir = get_output_dir(f"{CHECKPOINT_VERSION}_{TYPE}")
+    output_dir = get_output_dir(f"{CHECKPOINT_VERSION}_{TYPE}_{ID}")
     
     print(f"\n📌 Configuration:")
     print(f"   - Device: {device}")
