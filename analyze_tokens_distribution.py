@@ -337,7 +337,7 @@ def save_summary(analysis_results, version, output_dir):
             f.write(f"{'='*80}\n")
             f.write(f"Total tokens: {analysis_results[label]['total_tokens']}\n")
             f.write(f"Unique tokens: {analysis_results[label]['unique_count']}\n")
-            f.write(f"Codebook usage: {(analysis_results[label]['unique_count']/1024)*100:.2f}%\n\n")
+            f.write(f"Codebook usage: {(analysis_results[label]['unique_count']/CODEBOOK_SIZE)*100:.2f}%\n\n")
 
             top_k_display = len(analysis_results[label]['sorted_tokens']) if TOP_K == 0 else min(TOP_K, len(analysis_results[label]['sorted_tokens']))
             f.write(f"Top {top_k_display} tokens:\n")
